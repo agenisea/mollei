@@ -224,7 +224,7 @@ This is an open exploration. We don't have all the answers — but we believe th
 
 - **[GitHub](https://github.com/agenisea/mollei)** — Follow the work, contribute, discuss
 - **[Discord](https://discord.gg/dp4t5jG2)** — Join the conversation
-- **[Documentation](https://docs.mollei.org)** — Learn more about our approach
+- **[Documentation](https://github.com/agenisea/mollei#readme)** — Learn more about our approach
 
 ---
 
