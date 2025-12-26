@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="Mollei" width="200" />
 </p>
 
-<h1 align="center">Mollei</h1>
+<h1 align="center">Mollei™</h1>
 
 <p align="center">
   <strong>Exploring how to build AI that genuinely understands human emotion.</strong>
