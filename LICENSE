@@ -1,0 +1,78 @@
+Hippocratic License Version 3.0
+
+SPDX-License-Identifier: HL3
+
+Copyright (c) 2025 Agenisea
+
+Hippocratic License Version 3.0, Mollei Ethical Use Edition
+
+Permission is hereby granted, free of charge, to any person or organization
+obtaining a copy of the software and accompanying documentation covered by
+this license (the "Software") to use, reproduce, display, distribute, execute,
+and transmit the Software, and to prepare derivative works of the Software,
+and to permit third parties to whom the Software is furnished to do so, all
+subject to the following conditions:
+
+1. ETHICAL USE
+
+   a. The Software SHALL NOT be used by any person or entity for systems,
+      activities, or other uses that:
+
+      i.   Manipulate, exploit, or deceive individuals through emotional
+           or psychological means, including but not limited to:
+           - Dark patterns designed to coerce user behavior
+           - Artificial emotional dependency or attachment systems
+           - Deceptive persuasion techniques that bypass informed consent
+           - Systems designed to exploit vulnerable emotional states
+
+      ii.  Enable surveillance, profiling, or tracking of individuals
+           without their explicit, informed consent, including:
+           - Emotion recognition for surveillance purposes
+           - Behavioral profiling without user knowledge
+           - Collection of emotional or psychological data for third-party use
+
+      iii. Cause harm to human dignity, autonomy, or emotional well-being,
+           including:
+           - Systems designed to isolate individuals from human connection
+           - Technology that replaces rather than augments human care
+           - Applications that exploit loneliness or emotional vulnerability
+
+      iv.  Support military, weapons, or coercive governmental applications
+           that target civilian populations or violate human rights.
+
+      v.   Violate applicable laws or regulations, or violate the rights
+           of any person or entity.
+
+   b. The Software SHALL be used only in ways that preserve and respect:
+      - Human agency and autonomous decision-making
+      - Emotional authenticity and genuine connection
+      - Privacy and data sovereignty
+      - The distinction between AI assistance and human relationship
+
+2. ATTRIBUTION
+
+   Redistributions of the Software in source or binary form must retain
+   the above copyright notice, this list of conditions, and the following
+   disclaimer.
+
+3. DISCLAIMER
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+4. ENFORCEMENT
+
+   Any use of the Software in violation of this License will automatically
+   terminate the rights granted herein. The Licensor reserves the right to
+   pursue legal remedies for any violation of the ethical use provisions.
+
+---
+
+This license is based on the Hippocratic License 3.0 (https://firstdonoharm.dev/)
+with modifications specific to emotionally intelligent AI systems.
+
