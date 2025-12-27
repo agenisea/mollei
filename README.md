@@ -35,7 +35,7 @@ We believe emotionally intelligent AI should:
 
 ## Architecture
 
-A multi-agent system designed for emotional attunement, safety, and <5s response times.
+A multi-agent system designed for emotional attunement, safety, and <3s response times.
 
 ```
                       USER MESSAGE
@@ -124,6 +124,13 @@ Technology that approaches human emotion with care, not carelessness.
 
 ---
 
+## Documentation
+
+- **[Emotional AI Methodology](docs/EMOTIONAL_AI_METHODOLOGY.md)** — Our approach to building AI that understands human emotion
+- **[Documentation Index](docs/INDEX.md)** — Full documentation structure and hierarchy
+
+---
+
 ## Join Us
 
 This is an open exploration. We don't have all the answers — but we believe the questions matter.
@@ -137,6 +144,8 @@ This is an open exploration. We don't have all the answers — but we believe th
 
 [Hippocratic License 3.0](https://firstdonoharm.dev/) — open source with ethical guardrails.
 
+Mollei is free to self-host with your own LLM API keys. No pricing tiers, no paywalls.
+
 Free to use, study, and build upon, as long as the use preserves human dignity, agency, and emotional well-being. Systems designed for manipulation, surveillance, or exploitation are explicitly excluded.
 
 **Open — but not careless.**
@@ -144,3 +153,10 @@ Free to use, study, and build upon, as long as the use preserves human dignity, 
 ---
 
 *Built with care by [Agenisea™](https://agenisea.ai) and the Mollei community.*
+
+---
+
+© 2025 Patrick Peña / Agenisea™
+
+All original text and documentation is © the author.
+Documentation is licensed for use, sharing, and adaptation under the same terms as this repository, unless otherwise noted.

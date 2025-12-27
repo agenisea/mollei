@@ -1,6 +1,10 @@
 # Emotional AI Methodology
 
-> Research into how AI systems can recognize, interpret, and respond to human emotion with nuance and care.
+> **Tier**: 3 — Execution (see [INDEX.md](INDEX.md))
+> **Last Updated**: 12-27-25 02:00PM PST
+> **Status**: Active Research
+
+Research into how AI systems can recognize, interpret, and respond to human emotion with nuance and care.
 
 ---
 
@@ -108,4 +112,7 @@ A core job for many users is expanding their emotional vocabulary — moving fro
 
 ---
 
-*Last updated: 12-26-25*
+© 2025 Patrick Peña / Agenisea™
+
+All original text and documentation is © the author.
+Documentation is licensed for use, sharing, and adaptation under the same terms as this repository, unless otherwise noted.

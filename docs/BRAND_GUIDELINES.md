@@ -1,5 +1,6 @@
 # Mollei™ Brand Guidelines
 
+> **Last Updated**: 12-27-25 02:00PM PST
 > Identity, positioning, and principles for the Mollei brand.
 
 ---
@@ -274,7 +275,3 @@ The ™ symbol should be used consistently across:
 ### Questions?
 
 Open a discussion on [GitHub](https://github.com/agenisea/mollei/discussions) for brand-related questions or suggestions.
-
----
-
-*Last updated: 12-26-2025*
