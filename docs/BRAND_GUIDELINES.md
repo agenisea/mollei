@@ -1,6 +1,6 @@
 # Mollei™ Brand Guidelines
 
-> **Last Updated**: 12-27-25 02:00PM PST
+> **Last Updated**: 12-27-25 03:00PM PST
 > Identity, positioning, and principles for the Mollei brand.
 
 ---
@@ -13,7 +13,7 @@ Technology that approaches human emotion with care, not carelessness.
 
 ### Positioning Statement
 
-> **For** developers, researchers, and ethicists **who** believe AI should understand human emotion without exploiting it, **Mollei** is an **open source research community** that provides transparent, auditable infrastructure for emotionally intelligent AI. **Unlike** engagement-optimized companions, **Mollei measures emotional outcomes, not time in app — and succeeds when users need it less.**
+> **Mollei is an open source emotionally intelligent AI companion** that remembers who you are and helps you feel understood. Unlike engagement-optimized alternatives, Mollei measures emotional outcomes — and succeeds when users need it less.
 
 ### Core Tagline
 
@@ -104,7 +104,7 @@ We chose teal/cyan over alternatives for strategic reasons:
 |---------------|----------|
 | "AI-powered emotional intelligence platform" | "Open source tools for building AI that understands how people feel" |
 | "Revolutionary breakthrough" | "We're exploring what's possible" |
-| "Join thousands of users" | "Join the research community" |
+| "Join thousands of users" | "Contribute to the project" |
 | "Cutting-edge technology" | "Thoughtful approach to emotional AI" |
 
 ---
@@ -155,7 +155,7 @@ Mollei is AI. Always honest about that. We don't blur the line between artificia
 ### Why These Choices?
 
 **No shadows on cards:**
-Shadows signal "commercial product" — Mollei is a research community. Border-only interactions create a calm, considered response.
+Shadows signal "commercial product" — Mollei is an open source project. Border-only interactions create a calm, considered response.
 
 **No animated gradients:**
 Avoid "typical AI startup" visual language. Substance over flash — let content speak.

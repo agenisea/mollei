@@ -5,7 +5,7 @@
 <h1 align="center">Mollei™</h1>
 
 <p align="center">
-  <strong>Exploring how to build AI that genuinely understands human emotion.</strong>
+  <strong>Exploring how to build AI that understands human emotion.</strong>
 </p>
 
 ---

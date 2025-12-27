@@ -1,7 +1,7 @@
 # MOLLEI: North Star Specification
 
 > **Tier**: 1 — Strategic Authority (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-27-25 02:00PM PST
+> **Last Updated**: 12-27-25 03:00PM PST
 > **Status**: Strategic Foundation — Open Source
 > **Owner**: Community
 
@@ -108,7 +108,7 @@ The North Star decomposes into **5 input metrics** that teams can directly influ
 
 ### Positioning Statement
 
-> **Mollei is an open source research community** exploring how to build AI that genuinely understands human emotion — thoughtfully, transparently, together. We provide reference architectures, research, and tools for building emotionally intelligent AI systems that prioritize human well-being over engagement metrics.
+> **Mollei is an open source emotionally intelligent AI companion** that remembers who you are and helps you feel understood. Success is measured by genuine emotional outcomes.
 
 ### What Makes Mollei Different
 
@@ -992,29 +992,6 @@ Supporting Documentation
 └── INDEX.md: Document hierarchy and relationships
 ```
 
-## 6.2 Decision Log
-
-Track strategic decisions and their rationale:
-
-| Date | Decision | Rationale | Owner |
-|------|----------|-----------|-------|
-| Dec 2025 | North Star = WRU-ETI | Captures both retention and outcomes | Community |
-| Dec 2025 | MVP = 4 agents, not 17 | Reduce complexity, faster iteration | Core Contributors |
-| Dec 2025 | Kill EvoEmo | Premature optimization, prompt engineering works | ML Contributors |
-| Dec 2025 | Single personality for MVP | Reduce variables, validate core value | Community |
-| Dec 2025 | Hippocratic License | Ethical guardrails for open source | Community |
-
-## 6.3 Open Questions
-
-Track unresolved questions for future investigation:
-
-| Question | Impact | Owner | Target Date |
-|----------|--------|-------|-------------|
-| How to measure emotional trajectory reliably? | High | ML Contributors | Month 2 |
-| What personality types to offer in Phase 2? | Medium | Community | Month 4 |
-| Self-hosting infrastructure requirements? | High | Core Contributors | Month 3 |
-| Voice modality timing? | Medium | Community | Month 9 |
-
 ---
 
 # Appendix A: Glossary
@@ -1029,15 +1006,6 @@ Track unresolved questions for future investigation:
 | **D7/D30** | Day 7/Day 30 retention - % of users returning |
 | **HL3** | Hippocratic License 3.0 - ethical open source license |
 | **RFC** | Request for Comments - community decision-making process |
-
----
-
-# Appendix B: Changelog
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | Dec 2025 | Initial North Star specification |
-| 1.1 | Dec 2025 | Added Forces of Progress analysis (1.5), expanded personas with emotional/social jobs, added User Progress Indicators (3.4) |
 
 ---
 
