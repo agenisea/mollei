@@ -1,6 +1,6 @@
-# Mollei Brand Guidelines
+# Mollei™ Brand Guidelines
 
-> Design system, visual identity, and decision rationale for contributors.
+> Identity, positioning, and principles for the Mollei brand.
 
 ---
 
@@ -20,233 +20,54 @@ Technology that approaches human emotion with care, not carelessness.
 
 ---
 
-## Visual Identity
+## Brand Identity
+
+### The Name
+
+*Mollei* derives from Latin *mollis* — soft, gentle, sensitive. It represents the quality we're reaching for: technology that approaches human emotion with care, not carelessness.
 
 ### Logo
 
 The Mollei logo features a celestial figure in cyan-blue, representing:
-- **Elevation** — aspirational approach to emotional AI
-- **Care** — gentle, human-centered design
-- **Trust** — professional credibility
 
-**Usage:**
-- Full logo (mark + wordmark) in hero sections
-- Mark only in favicons and small contexts
+| Element | Meaning |
+|---------|---------|
+| **Celestial figure** | Elevation, aspiration, guidance |
+| **Cyan-blue color** | Trust, expertise, warmth |
+| **Upward posture** | Hope, growth, human potential |
+
+**Usage Requirements:**
 - Always include ™ symbol: **Mollei™**
+- Maintain clear space around logo (minimum 16px equivalent)
+- Do not alter colors or proportions
+- Logo available at [mollei.org](https://mollei.org)
 
-### Color System (OKLCH)
+### Color Philosophy
 
-We use OKLCH color space for perceptual uniformity and accessibility. OKLCH values are the **source of truth**.
+**Primary: Teal/Cyan**
 
-All colors verified for **WCAG AA compliance** (4.5:1 minimum contrast ratio).
+We chose teal/cyan over alternatives for strategic reasons:
 
-#### Light Mode
+| Color Option | Why We Rejected It |
+|--------------|-------------------|
+| Purple | Too "consumer wellness" — feels cute, not credible |
+| Cold Blue | Too enterprise — lacks warmth for emotional AI |
+| Pink | Too playful — undermines research credibility |
 
-| Token | OKLCH Value | Usage |
-|-------|-------------|-------|
-| `--primary` | `oklch(0.58 0.15 230)` | Primary actions, links, logo |
-| `--primary-foreground` | `oklch(0.98 0 0)` | Text on primary |
-| `--secondary` | `oklch(0.52 0.10 240)` | Secondary elements |
-| `--secondary-foreground` | `oklch(0.98 0 0)` | Text on secondary |
-| `--accent` | `oklch(0.75 0.12 225)` | Highlights, hover states |
-| `--accent-foreground` | `oklch(0.15 0.03 235)` | Text on accent |
-| `--background` | `oklch(0.98 0.006 235)` | Page background (cool white) |
-| `--foreground` | `oklch(0.18 0.03 235)` | Primary text |
-| `--card` | `oklch(1 0 0)` | Card backgrounds |
-| `--card-foreground` | `oklch(0.18 0.03 235)` | Card text |
-| `--muted` | `oklch(0.96 0.008 235)` | Secondary backgrounds |
-| `--muted-foreground` | `oklch(0.45 0.03 235)` | Secondary text |
-| `--border` | `oklch(0.90 0.012 235)` | Borders, dividers |
-| `--input` | `oklch(0.90 0.012 235)` | Input borders |
-| `--ring` | `oklch(0.58 0.15 230)` | Focus rings |
-| `--destructive` | `oklch(0.55 0.22 25)` | Error states |
-| `--destructive-foreground` | `oklch(0.98 0 0)` | Text on destructive |
+**Teal/Cyan signals:**
+- Trust + expertise (healthcare/tech crossover)
+- Warmth without frivolity
+- Derived from logo for visual consistency
 
-#### Dark Mode
-
-Enhanced luminance values for WCAG AA compliance on dark backgrounds.
-
-| Token | OKLCH Value | Usage |
-|-------|-------------|-------|
-| `--primary` | `oklch(0.72 0.12 230)` | Primary actions, links |
-| `--primary-foreground` | `oklch(0.10 0.02 230)` | Text on primary |
-| `--secondary` | `oklch(0.58 0.10 235)` | Secondary elements |
-| `--secondary-foreground` | `oklch(0.95 0 0)` | Text on secondary |
-| `--accent` | `oklch(0.78 0.13 220)` | Highlights |
-| `--accent-foreground` | `oklch(0.10 0.02 230)` | Text on accent |
-| `--background` | `oklch(0.10 0.020 240)` | Deep space with teal tint |
-| `--foreground` | `oklch(0.95 0.008 225)` | Light text |
-| `--card` | `oklch(0.14 0.022 238)` | Elevated surfaces |
-| `--card-foreground` | `oklch(0.95 0.008 225)` | Card text |
-| `--muted` | `oklch(0.18 0.022 238)` | Muted backgrounds |
-| `--muted-foreground` | `oklch(0.70 0.025 230)` | Secondary text |
-| `--border` | `oklch(0.26 0.025 235)` | Borders |
-| `--input` | `oklch(0.20 0.022 238)` | Input backgrounds |
-| `--ring` | `oklch(0.72 0.12 230)` | Focus rings |
-| `--destructive` | `oklch(0.62 0.20 25)` | Error states |
-| `--destructive-foreground` | `oklch(0.98 0 0)` | Text on destructive |
+**Accessibility:** All color combinations meet WCAG AA standards (4.5:1 minimum contrast ratio).
 
 ### Typography
 
-| Element | Font | Weight | Size |
-|---------|------|--------|------|
-| Headlines | Geist Sans | 700 | 3rem - 3.75rem |
-| Subheads | Geist Sans | 600 | 1.5rem - 2.25rem |
-| Body | Geist Sans | 400 | 1rem - 1.125rem |
-| Code | Geist Mono | 400 | 0.875rem |
-
-**Fallback Stack:**
-- Sans: `Geist Sans, Inter, system-ui, sans-serif`
-- Mono: `Geist Mono, JetBrains Mono, monospace`
-
-**Type Scale:** 1.25 ratio (Major Third)
-
-### Spacing
-
-8px base unit system:
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| xs | 4px | Tight spacing |
-| sm | 8px | Component padding |
-| md | 16px | Standard gaps |
-| lg | 24px | Section margins |
-| xl | 32px | Large spacing |
-| 2xl | 48px | Section padding |
-| 3xl | 64px | Major sections |
-| 4xl | 80px | Hero spacing |
-| 5xl | 96px | Maximum breathing room |
-
-### Border Radius
-
-- **Default (`--radius`):** `0.75rem` (12px) — rounded but not pill-shaped
-- **Small (`rounded-lg`):** `0.5rem` (8px)
-- **Large (`rounded-xl`):** `0.75rem` (12px)
-
----
-
-## Components
-
-### Buttons
-
-- Primary: Solid fill, teal background, white text
-- Secondary: Border only, transparent background
-- Ghost: Minimal, text-only appearance
-- All buttons: 12px radius, 44px minimum touch target
-
-### Cards
-
-- Border-only design (no shadows) — reflects "thoughtful research" positioning
-- 12px border radius (`rounded-xl`)
-- Background: `--card`
-- 1px border: `--border`
-
-### Interactive States
-
-All interactive elements follow a consistent hover pattern:
-
-| Element | Hover State | Transition |
-|---------|-------------|------------|
-| Cards | `hover:border-primary/50` | 200ms |
-| Icon containers | `group-hover:bg-primary/20` | 200ms |
-| Links | `hover:underline` | instant |
-| Destructive cards | `hover:border-destructive/40` | 200ms |
-
-**Key Decision:** No shadow hovers. Border-only hovers create a "calm, considered response" aligned with the thoughtful research community positioning.
-
-### Code Blocks
-
-- Dark background (#1f2937)
-- Monospace font
-- 12px radius
-
----
-
-## Accessibility
-
-### WCAG Compliance
-
-All color combinations meet **WCAG AA** standards (4.5:1 contrast ratio minimum).
-
-| Pairing | Light Mode | Dark Mode |
-|---------|------------|-----------|
-| Body text on background | ~16:1 ✅ | ~15:1 ✅ |
-| Muted text on background | ~6:1 ✅ | ~7:1 ✅ |
-| Muted text on card | ~6:1 ✅ | ~5.5:1 ✅ |
-| Primary on background | ~5:1 ✅ | ~8:1 ✅ |
-
-### Focus States
-
-All interactive elements have visible focus indicators:
-```css
-:focus-visible {
-  outline: none;
-  ring: 2px;
-  ring-color: var(--ring);
-  ring-offset: 2px;
-}
-```
-
-### Motion
-
-- Reduced motion preference respected via `prefers-reduced-motion`
-- All animations disabled when user prefers reduced motion
-- Default animations are subtle (opacity, transform only)
-
-### Touch Targets
-
-Minimum 44x44px touch targets for all interactive elements (WCAG 2.5.5).
-
----
-
-## Animation
-
-### Breathing Glow (Hero Logo)
-
-Subtle pulsing glow effect on the hero logo:
-```css
-@keyframes glow-breathe {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.05); }
-}
-.glow-breathe {
-  animation: glow-breathe 4s ease-in-out infinite;
-}
-```
-
-### Fade-In Sections
-
-Content sections fade in on scroll:
-```css
-.fade-in-section {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-}
-.fade-in-section.fade-in-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-```
-
----
-
-## Mobile Patterns
-
-### Safe Area Padding
-
-Footer includes safe area inset for iOS devices:
-```css
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-```
-
-### Responsive Breakpoints
-
-- Mobile: < 640px
-- Tablet: 640px - 1024px
-- Desktop: > 1024px
+| Use | Font | Character |
+|-----|------|-----------|
+| Headlines | Geist Sans | Modern, clean, technical credibility |
+| Body | Geist Sans | Readable, professional |
+| Code | Geist Mono | Technical precision |
 
 ---
 
@@ -276,83 +97,76 @@ Footer includes safe area inset for iOS devices:
 - Add emojis or decorative elements
 - Use "AI-powered" or "revolutionary"
 
-### Examples
+### Language Examples
 
 | Instead of... | Write... |
 |---------------|----------|
 | "AI-powered emotional intelligence platform" | "Open source tools for building AI that understands how people feel" |
 | "Revolutionary breakthrough" | "We're exploring what's possible" |
 | "Join thousands of users" | "Join the research community" |
+| "Cutting-edge technology" | "Thoughtful approach to emotional AI" |
 
 ---
 
-## Design Decisions (Rationale)
+## Core Beliefs
 
-### Why Teal/Cyan (Not Purple or Blue)?
+These beliefs shape every brand decision:
 
-**Decision:** Primary color `oklch(0.58 0.15 230)` — vibrant cyan-blue
+### Measure What Matters
+The industry optimizes for Daily Active Users. We reject it. DAU rewards addiction, distress loops, and manufactured need. We measure emotional trajectory — are people actually feeling better over time?
 
-**Rationale:**
-- **Purple** (common in emotional/wellness apps) feels too consumer-focused, potentially "cute"
-- **Cold blue** (enterprise) lacks warmth for emotional AI context
-- **Teal/Cyan** signals trust + expertise (healthcare/tech crossover) while maintaining warmth
-- Derived from logo mark for visual consistency
+### Augment, Never Replace
+We build something that helps when humans aren't available — and encourages you to seek them when they are. The goal is always to return people to human connection, not away from it.
 
-### Why OKLCH (Not Hex)?
+### Safety as Foundation
+People share vulnerable things when they feel understood. That's a responsibility, not an opportunity. Every system we build asks: What happens when someone is in crisis?
 
-**Decision:** OKLCH color space as source of truth
+### No Dark Patterns
+No streaks. No badges. No guilt. No notifications designed to pull you back. If you're doing well, we're doing our job.
 
-**Rationale:**
-- Perceptually uniform — consistent perceived lightness across hues
-- Better for accessibility calculations (contrast ratios)
-- Modern CSS support in all major browsers
-- Future-proof for wide-gamut displays
+### Honest About What We Are
+Mollei is AI. Always honest about that. We don't blur the line between artificial and human connection — because that line matters.
 
-### Why Hippocratic License?
+---
 
-**Decision:** Hippocratic License 3.0 (not MIT, Apache, GPL)
+## What We're Not
 
-**Rationale:**
-- Open source with ethical guardrails
-- Explicitly prohibits emotional manipulation, surveillance, coercion
-- Differentiates from "move fast and break things" AI culture
-- Aligns with "open — but not careless" positioning
+| We Are Not | Why This Matters |
+|------------|------------------|
+| **A therapist** | We don't diagnose, treat, or provide clinical interventions |
+| **Entertainment** | This isn't roleplay or a character to befriend for fun |
+| **Social** | No sharing features, friend networks, or leaderboards |
+| **Pretending to be human** | Always transparent about being AI |
 
-### Why "Success Means You Need Us Less"?
+---
 
-**Decision:** Anti-engagement metrics philosophy
+## Design Principles
 
-**Rationale:**
-- Industry standard (DAU) rewards addiction, distress loops
-- Emotional AI should measure outcomes, not extraction
-- Creates genuine differentiation vs. Character.AI, Replika
-- Attracts ethically-aligned contributors
+### Visual Aesthetic
 
-### Why No Shadows on Cards?
+| Principle | Expression |
+|-----------|------------|
+| **Substance over flash** | No animated gradients, no hype visuals |
+| **Calm, considered** | Border-only hovers, no shadow elevation |
+| **Accessible** | WCAG AA compliance, reduced motion support |
+| **Professional** | Research community, not consumer product |
 
-**Decision:** Border-only hover states, no shadow elevation
+### Why These Choices?
 
-**Rationale:**
-- Shadows signal "commercial product" — Mollei is a research community
-- Border-only hovers create calm, considered response
-- Aligns with "thoughtful research" positioning
-- Reduces visual noise, increases content focus
+**No shadows on cards:**
+Shadows signal "commercial product" — Mollei is a research community. Border-only interactions create a calm, considered response.
 
-### Why No Animated Gradients?
+**No animated gradients:**
+Avoid "typical AI startup" visual language. Substance over flash — let content speak.
 
-**Decision:** Subtle, professional aesthetics
-
-**Rationale:**
-- Avoid "typical AI startup" visual language
-- Substance over flash — let content speak
-- Accessible (reduced motion preference respected)
-- Technical credibility through restraint
+**Teal over purple:**
+Purple is overused in emotional/wellness apps and feels too consumer-focused. Teal signals trust + expertise.
 
 ---
 
 ## Anti-Patterns
 
-What we explicitly avoid:
+What we explicitly avoid in brand expression:
 
 | Anti-Pattern | Why We Avoid It |
 |--------------|-----------------|
@@ -363,43 +177,101 @@ What we explicitly avoid:
 | Gamification elements | Streaks, badges create guilt |
 | Social features | Privacy is architecture, not feature |
 | Shadow-based elevation | Too commercial, reduces focus |
-| Lift/transform on hover | Motion for motion's sake |
+| Superlative claims | "Best," "revolutionary," "breakthrough" |
 
 ---
 
-## Usage Guidelines
+## Social Positioning
 
-### For Contributors
+How users describe Mollei to others matters. We design for the moment when someone asks "What's Mollei?" — reducing stigma while maintaining honest positioning.
 
-1. **Colors:** Use CSS custom properties (`var(--primary)`) not raw values
-2. **Typography:** Stick to the type scale, avoid custom sizes
-3. **Spacing:** Use 8px multiples, prefer Tailwind classes
-4. **Icons:** Lucide React library for consistency
-5. **Copy:** Follow voice guidelines, keep it human
-6. **Hover states:** Border-only, 200ms transitions, no shadows
-7. **Accessibility:** Test with screen readers, respect reduced motion
+### What Users Tell Others
 
-### For External Use
+Different audiences need different framings:
 
-- Logo available in `/assets/logo.png`
-- Always include ™ symbol
-- Maintain clear space around logo (minimum 16px)
-- Do not alter colors or proportions
+| Audience | Preferred Framing |
+|----------|-------------------|
+| Friends | "It's like a journaling app that talks back" |
+| Therapist | "It helps me track patterns between sessions" |
+| Skeptics | "It's an open source research project for emotional AI" |
+| Family | "It's a mental wellness tool I find helpful" |
+| Coworkers | "It's a self-reflection app" |
+
+### Reducing Social Stigma
+
+Users may feel stigma about using AI for emotional support. Provide language that reframes:
+
+| Stigma | Reframe |
+|--------|---------|
+| "Talking to AI is sad" | "It's self-care technology, like a meditation app" |
+| "You should talk to real people" | "I do — this is for when they're asleep" |
+| "AI can't understand feelings" | "It's not perfect, but it helps me name them" |
+| "That's for lonely people" | "It's for anyone who wants to process thoughts" |
+| "You need real therapy" | "I have therapy — this extends it" |
+
+### Brand Voice in Social Context
+
+When users share or discuss Mollei publicly:
+
+**Do:**
+- Emphasize open source, research-focused nature
+- Position as tool/infrastructure, not replacement
+- Acknowledge limitations honestly
+- Reference ethical commitments (Hippocratic License)
+
+**Don't:**
+- Claim therapeutic equivalence
+- Use testimonials that imply medical outcomes
+- Encourage dependency narratives
+- Compare unfavorably to human relationships
+
+### Social Proof Strategy
+
+We avoid manipulative social proof ("1M users!") but do emphasize:
+- Research community size
+- Contributor count
+- Academic citations (when available)
+- Ethical framework adoption
 
 ---
 
-## Brand Assets
+## Licensing & Ethics
 
-| Asset | Location |
-|-------|----------|
-| Logo (PNG) | `/assets/logo.png` |
-| Color tokens | `/app/globals.css` |
-| Typography | Geist Sans via `next/font` |
-| Icons | Lucide React |
+### Hippocratic License 3.0
+
+We chose the Hippocratic License over standard open source licenses (MIT, Apache, GPL) because emotional AI is not neutral technology.
+
+**Why not standard permissive licenses?**
+They allow any use — including manipulation, surveillance, and exploitation. For emotionally intelligent AI, neutrality is not neutral.
+
+**The license explicitly prohibits:**
+- Emotional manipulation or coercive persuasion
+- Dark patterns designed to coerce user behavior
+- Artificial emotional dependency systems
+- Surveillance or profiling without explicit consent
+- Exploitation of loneliness or vulnerability
+
+**The license requires:**
+- Preservation of human agency and autonomous decision-making
+- Emotional authenticity and genuine connection
+- Privacy and data sovereignty
+- Clear distinction between AI assistance and human relationship
 
 ---
 
-## Questions?
+## Brand Governance
+
+### Trademark
+
+**MOLLEI™** is a trademark of Patrick Peña / Agenisea
+
+The ™ symbol should be used consistently across:
+- Website header and footer
+- Page titles and metadata
+- Documentation
+- Marketing materials
+
+### Questions?
 
 Open a discussion on [GitHub](https://github.com/agenisea/mollei/discussions) for brand-related questions or suggestions.
 
