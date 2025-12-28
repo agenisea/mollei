@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-28-25 11:15AM PST
+> **Last Updated**: 12-28-25 3:00PM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -23,6 +23,15 @@
 │  │  • Phase boundaries (MVP → Growth)                              │      │
 │  │  • What we build / explicitly don't build                       │      │
 │  │  • Success metrics & validation gates                           │      │
+│  └─────────────────────────────────────────────────────────────────┘      │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐      │
+│  │  NORTHSTAR_EXTRACT.md (Design DNA)                              │      │
+│  │  • Core axioms (immutable constraints)                          │      │
+│  │  • Explicit non-goals (kill list)                               │      │
+│  │  • Structural patterns (reusable motifs)                        │      │
+│  │  • Language invariants (what to always/never do)                │      │
+│  │  • Re-evaluation triggers                                       │      │
 │  └─────────────────────────────────────────────────────────────────┘      │
 │                              │                                            │
 │                              ▼                                            │
@@ -121,6 +130,7 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
 | Document | Tier | Purpose | When to Use |
 |----------|------|---------|-------------|
 | [NORTHSTAR.md](NORTHSTAR.md) | 1 | Strategic direction | Product decisions, prioritization, metrics |
+| [NORTHSTAR_EXTRACT.md](NORTHSTAR_EXTRACT.md) | 1 | Design DNA | Start of planning sessions, prevent re-litigating |
 | [ARCHITECTURE_BLUEPRINT.md](ARCHITECTURE_BLUEPRINT.md) | 2 | Technical implementation | Building agents, orchestration, resilience |
 | ↳ [architecture/PIPELINE_ORCHESTRATION.md](architecture/PIPELINE_ORCHESTRATION.md) | 2 | Pipeline details | State schema, orchestrator, patterns |
 | ↳ [architecture/RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | 2 | Failure handling | Circuit breakers, fallbacks, timeouts |
@@ -151,7 +161,9 @@ Tier 1 (NORTHSTAR) > Tier 2 (Blueprint/Security) > Tier 3 (Optimization/Methodol
 ## Document Dependencies
 
 ```
-NORTHSTAR.md
+NORTHSTAR.md (Strategic Authority)
+    │
+    ├──► NORTHSTAR_EXTRACT.md (Design DNA - accelerates future planning)
     │
     ├──► ARCHITECTURE_BLUEPRINT.md (implements North Star requirements)
     │    │
@@ -175,6 +187,7 @@ NORTHSTAR.md
 | Document | Status | Last Updated |
 |----------|--------|--------------|
 | NORTHSTAR.md | Active | December 2025 |
+| NORTHSTAR_EXTRACT.md | Active | December 2025 |
 | ARCHITECTURE_BLUEPRINT.md | Active (Modularized) | December 2025 |
 | ↳ architecture/PIPELINE_ORCHESTRATION.md | Active | December 2025 |
 | ↳ architecture/RESILIENCE_PATTERNS.md | Active | December 2025 |

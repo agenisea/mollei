@@ -1,8 +1,8 @@
 # MOLLEI: Security Architecture
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 2:00PM PST
-> **Status**: v1.0 Design
+> **Last Updated**: 12-28-25 3:00PM PST
+> **Status**: Design
 > **Scope**: Authentication, Authorization, Data Protection, Safety
 
 > **Constants Reference**: All magic values in this document should map to constants defined in

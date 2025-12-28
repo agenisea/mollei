@@ -1,7 +1,7 @@
 # MOLLEI: Latency Optimization Plan
 
 > **Tier**: 3 — Execution (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-28-25 3:00PM PST
 > **Status**: Recommendations Integrated
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
@@ -55,7 +55,7 @@ For emotional AI companions like Mollei, there's nuance:
 
 ## Part 2: Current Architecture Analysis
 
-### Existing Latency Budget (Blueprint v4.2)
+### Existing Latency Budget
 
 | Phase | Agents | Model | Budget | Parallel? |
 |-------|--------|-------|--------|-----------|

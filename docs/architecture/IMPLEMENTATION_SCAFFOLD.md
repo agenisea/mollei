@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-28-25 3:00PM PST
 
 ---
 
@@ -69,19 +69,19 @@ mollei/
 │   ├── infrastructure/                  # Tracing & observability
 │   │   ├── index.ts
 │   │   ├── trace.ts                     # Generic trace events, handler interface
-│   │   ├── trace-id.ts                  # Branded TraceId type [v4.0]
-│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing [v4.0]
+│   │   ├── trace-id.ts                  # Branded TraceId type
+│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing
 │   │   ├── trace-sanitizer.ts           # PII/secret redaction
-│   │   ├── otel-handler.ts              # OpenTelemetry handler (PRIMARY) [v5.0]
-│   │   ├── otel-bootstrap.ts            # OpenTelemetry SDK initialization [v5.0]
+│   │   ├── otel-handler.ts              # OpenTelemetry handler (PRIMARY)
+│   │   ├── otel-bootstrap.ts            # OpenTelemetry SDK initialization
 │   │   ├── langsmith-handler.ts         # LangSmith backend (optional)
 │   │   ├── cost-aggregator.ts           # Per-turn cost tracking
 │   │   ├── console-handler.ts           # Development console logging
 │   │   ├── tracing-bootstrap.ts         # Server startup initialization
-│   │   ├── token-budget.ts              # TokenBudgetTracker [v4.0]
-│   │   ├── llm-limiter.ts               # Per-request LLM concurrency [v4.0]
-│   │   ├── cache.ts                     # CacheStatus types [v4.0]
-│   │   └── cache-race.ts                # Race condition handler [v4.0]
+│   │   ├── token-budget.ts              # TokenBudgetTracker
+│   │   ├── llm-limiter.ts               # Per-request LLM concurrency
+│   │   ├── cache.ts                     # CacheStatus types
+│   │   └── cache-race.ts                # Race condition handler
 │   │
 │   ├── prompts/
 │   │   ├── index.ts                     # Prompt loader

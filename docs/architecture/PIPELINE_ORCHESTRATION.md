@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-28-25 3:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -911,7 +911,7 @@ function containsCrisisKeywords(text: string): boolean {
 
 ---
 
-## 6D. Microsoft AI Agent Design Patterns (v4.1)
+## 6D. Microsoft AI Agent Design Patterns
 
 > **Reference**: [Azure Architecture Center - AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns)
 
@@ -1387,7 +1387,7 @@ export function prepareAgentContext(
 | Creating unnecessary complexity | 5 agents only; each has distinct purpose |
 | Adding agents without specialization | Each agent has unique model/budget/output |
 | Overlooking latency | Concurrent pattern reduces sequential hops |
-| Sharing mutable state | Request-scoped PipelineContext (v4.0) |
+| Sharing mutable state | Request-scoped PipelineContext |
 | Deterministic patterns for non-deterministic | Crisis routing uses conditional edges |
 | Context window explosion | Strategy-based context passing per agent |
 | Infinite loops | MAX_ITERATIONS in Maker-Checker |
