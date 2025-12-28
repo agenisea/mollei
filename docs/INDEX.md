@@ -8,53 +8,61 @@
 ## Document Hierarchy
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         MOLLEI DOCUMENTATION                           │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│  TIER 1: STRATEGIC AUTHORITY                                           │
-│  ───────────────────────────                                           │
-│  The source of truth for product direction. All other docs defer here. │
-│                                                                        │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  NORTHSTAR.md                                                   │   │
-│  │  • North Star metric (WRU-ETI)                                  │   │
-│  │  • Target users & personas                                      │   │
-│  │  • Phase boundaries (MVP → Growth)                              │   │
-│  │  • What we build / explicitly don't build                       │   │
-│  │  • Success metrics & validation gates                           │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                         │
-│                              ▼                                         │
-│  TIER 2: IMPLEMENTATION                                                │
-│  ──────────────────────                                                │
-│  How we build what the North Star defines.                             │
-│                                                                        │
-│  ┌──────────────────────────────┐  ┌──────────────────────────────┐    │
-│  │  ARCHITECTURE_BLUEPRINT.md   │  │  SECURITY_ARCHITECTURE.md    │    │
-│  │                              │  │                              │    │
-│  │  • Agent topology (5 agents) │  │  • Threat model (OWASP)      │    │
-│  │  • LangGraph orchestration   │  │  • Authentication/authz      │    │
-│  │  • State schema              │  │  • Trust boundaries          │    │
-│  │  • Resilience patterns       │  │  • Audit & incident response │    │
-│  │  • Observability             │  │  • Security checklist        │    │
-│  └──────────────────────────────┘  └──────────────────────────────┘    │
-│                              │                                         │
-│                              ▼                                         │
-│  TIER 3: EXECUTION                                                     │
-│  ────────────────                                                      │
-│  Active work, research, and optimization.                              │
-│                                                                        │
-│  ┌──────────────────────────────┐  ┌──────────────────────────────┐    │
-│  │  OPTIMIZATION_PLAN.md        │  │  EMOTIONAL_AI_METHODOLOGY.md │    │
-│  │                              │  │                              │    │
-│  │  • Latency targets (<3s)     │  │  • Research foundations      │    │
-│  │  • Model selection rationale │  │  • Ethical approach          │    │
-│  │  • Implementation roadmap    │  │  • Academic citations        │    │
-│  │  • Quality trade-offs        │  │  • Design principles         │    │
-│  └──────────────────────────────┘  └──────────────────────────────┘    │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                         MOLLEI DOCUMENTATION                              │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  TIER 1: STRATEGIC AUTHORITY                                              │
+│  ───────────────────────────                                              │
+│  The source of truth for product direction. All other docs defer here.    │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐      │
+│  │  NORTHSTAR.md                                                   │      │
+│  │  • North Star metric (WRU-ETI)                                  │      │
+│  │  • Target users & personas                                      │      │
+│  │  • Phase boundaries (MVP → Growth)                              │      │
+│  │  • What we build / explicitly don't build                       │      │
+│  │  • Success metrics & validation gates                           │      │
+│  └─────────────────────────────────────────────────────────────────┘      │
+│                              │                                            │
+│                              ▼                                            │
+│  TIER 2: IMPLEMENTATION                                                   │
+│  ──────────────────────                                                   │
+│  How we build what the North Star defines.                                │
+│                                                                           │
+│  ┌───────────────────────────────────┐  ┌──────────────────────────────┐  │
+│  │  ARCHITECTURE_BLUEPRINT.md        │  │  SECURITY_ARCHITECTURE.md    │  │
+│  │                                   │  │                              │  │
+│  │  • Agent topology (5 agents)      │  │  • Threat model (OWASP)      │  │
+│  │  • Custom pipeline orchestration  │  │  • Authentication/authz      │  │
+│  │  • State schema (Zod)             │  │  • Trust boundaries          │  │
+│  │  • Self-correction patterns       │  │  • Audit & incident response │  │
+│  │  • OpenTelemetry observability    │  │  • Security checklist        │  │
+│  └───────────────────────────────────┘  └──────────────────────────────┘  │
+│                              │                                            │
+│                              ▼                                            │
+│  TIER 3: RESEARCH & OPTIMIZATION                                          │
+│  ───────────────────────────────                                          │
+│  Active work, research, and optimization.                                 │
+│                                                                           │
+│  ┌──────────────────────────────┐  ┌──────────────────────────────┐       │
+│  │  OPTIMIZATION_PLAN.md        │  │  EMOTIONAL_AI_METHODOLOGY.md │       │
+│  │                              │  │                              │       │
+│  │  • Latency targets (<3s)     │  │  • Research foundations      │       │
+│  │  • Model selection rationale │  │  • Ethical approach          │       │
+│  │  • Implementation roadmap    │  │  • Academic citations        │       │
+│  │  • Quality trade-offs        │  │  • Design principles         │       │
+│  └──────────────────────────────┘  └──────────────────────────────┘       │
+│                                                                           │
+│  ┌────────────────────────────────────────────────────────────────┐       │
+│  │  ARCHITECTURE_RESEARCH_INSIGHTS.md                             │       │
+│  │                                                                │       │
+│  │  • Industry pattern validation      • Competitive analysis     │       │
+│  │  • Academic research citations      • Gap identification       │       │
+│  │  • Risk assessment                  • External references      │       │
+│  └────────────────────────────────────────────────────────────────┘       │
+│                                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -68,6 +76,7 @@
 | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) | 2 | Security patterns | Auth, threats, compliance, incident response |
 | [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) | 3 | Performance work | Latency optimization, model selection |
 | [EMOTIONAL_AI_METHODOLOGY.md](EMOTIONAL_AI_METHODOLOGY.md) | 3 | Research basis | Understanding approach, ethics, citations |
+| [ARCHITECTURE_RESEARCH_INSIGHTS.md](ARCHITECTURE_RESEARCH_INSIGHTS.md) | 3 | Architecture validation | Pattern validation, competitive analysis |
 
 ---
 
@@ -89,8 +98,10 @@ Tier 1 (NORTHSTAR) > Tier 2 (Blueprint/Security) > Tier 3 (Optimization/Methodol
 NORTHSTAR.md
     │
     ├──► ARCHITECTURE_BLUEPRINT.md (implements North Star requirements)
-    │         │
-    │         └──► SECURITY_ARCHITECTURE.md (secures the architecture)
+    │    │
+    │    ├──► SECURITY_ARCHITECTURE.md (secures the architecture)
+    │    │
+    │    └──► ARCHITECTURE_RESEARCH_INSIGHTS.md (validates patterns)
     │
     ├──► OPTIMIZATION_PLAN.md (optimizes against North Star metrics)
     │
@@ -108,6 +119,7 @@ NORTHSTAR.md
 | SECURITY_ARCHITECTURE.md | Active | December 2025 |
 | OPTIMIZATION_PLAN.md | Active (recommendations integrated) | December 2025 |
 | EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 |
+| ARCHITECTURE_RESEARCH_INSIGHTS.md | Active | December 2025 |
 
 ---
 
