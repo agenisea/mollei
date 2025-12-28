@@ -1,7 +1,7 @@
 # MOLLEI: North Star Specification
 
 > **Tier**: 1 — Strategic Authority (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-27-25 03:00PM PST
+> **Last Updated**: 12-27-25 04:30PM PST
 > **Status**: Strategic Foundation — Open Source
 > **Owner**: Community
 
@@ -873,6 +873,69 @@ over information delivery.
 | Stripe | Phase 2+ | Optional: if operator needs donation-based contributions |
 | LangSmith | Phase 2 | Basic logging sufficient for MVP |
 | Kubernetes | Phase 3 | Railway sufficient for MVP/Phase 2 scale |
+
+---
+
+## 4.6 LLM Provider Decision: Why Anthropic Claude
+
+### Strategic Decision
+
+> **Decision**: Mollei uses Anthropic's Claude model family exclusively for all LLM operations.
+>
+> **Rationale**: Claude's Constitutional AI training, emotional intelligence, and safety-first design align directly with Mollei's mission of genuine emotional support.
+
+### Why Claude Over Alternatives
+
+| Factor | Anthropic Claude | OpenAI GPT | Why Claude Wins |
+|--------|------------------|------------|-----------------|
+| **Emotional Intelligence** | Constitutional AI, empathy-first design | Dynamic but can lack restraint | Calm, thoughtful tone matches INFJ personality |
+| **Safety & De-escalation** | Built-in guardrails, cautious on sensitive topics | More permissive, requires prompt engineering | Critical for crisis handling |
+| **Natural Tone** | Human-like, thoughtful, unhurried | Structured, can feel generic or over-enthusiastic | Avoids "AI feel" in emotional conversations |
+| **Hallucination Rate** | Lower (industry-leading accuracy) | Higher on edge cases | Trust is paramount in emotional support |
+| **Context Window** | 200K standard (1M beta) | 128K | Better for conversation history and memory |
+
+### Research Evidence
+
+From psychiatric clinical comparison (Psychiatric Times, 2025):
+
+> *"Claude aims to offer balanced and safe interactions... focusing on providing empathetic and contextually appropriate responses, which could be particularly useful in mental health applications."*
+
+From emotional AI evaluation (multiple 2025 benchmarks):
+
+> *"Claude's constitutional AI training makes it naturally better at de-escalation and maintaining a calm, helpful tone even when customers are upset."*
+
+> *"Claude shines in Role-Play and Emotional Intelligence... handled emotional nuance beautifully, responding with empathy, context awareness."*
+
+### Model Tier Strategy
+
+| Tier | Model | Cost (per MTok) | Use Case |
+|------|-------|-----------------|----------|
+| **Fast** | Claude Haiku 4.5 | $1 / $5 | Parallel analysis agents (mood, memory, safety) |
+| **Balanced** | Claude Sonnet 4.5 | $3 / $15 | Response generation (primary) |
+| **Premium** | Claude Opus 4.5 | $5 / $25 | Crisis fallback (severity 4+) |
+
+**Cost Efficiency**: ~$0.014 per conversation (non-crisis) — 78% cheaper than equivalent GPT-4o implementation.
+
+### What Claude Lacks (Accepted Trade-offs)
+
+| Capability | Claude Status | Mitigation |
+|------------|---------------|------------|
+| Real-time voice | Not native | Text-first is intentional for Phase 1 |
+| Image generation | Not available | Out of scope for emotional companion |
+| Speed | Moderate (not fastest) | Streaming TTFT <1s compensates |
+
+### Decision Finality
+
+This decision is **strategic and long-term**. Switching LLM providers would require:
+- Re-tuning all 5 agent prompts
+- Re-validating emotional accuracy benchmarks
+- Re-testing crisis detection precision
+- Community review and approval
+
+The decision should only be revisited if:
+1. Anthropic significantly degrades Claude's emotional capabilities
+2. A competitor demonstrates measurably superior emotional intelligence
+3. Cost becomes prohibitive (currently not a concern)
 
 ---
 
