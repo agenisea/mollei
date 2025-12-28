@@ -384,11 +384,11 @@ interface LatencyMetrics {
 
 | Date | Decision | Rationale | Owner |
 |------|----------|-----------|-------|
-| 2024-12-24 | Target <3s P95 (down from <5s) | Industry benchmarks show 5s is abandonment threshold | Product |
-| 2024-12-24 | Switch analysis agents to Haiku 4.5 | Matches Sonnet 4 quality at 4-5x speed | Engineering |
-| 2024-12-24 | Evaluate Sonnet 4.5 for response_generator | 2x faster than Opus with minimal quality loss | Engineering |
-| 2024-12-24 | Mandate streaming for all responses | Perceived latency <1s critical for UX | Product |
-| 2024-12-24 | Add TTFT as primary latency metric | Users judge speed by first token, not completion | Product |
+| 2025-12-24 | Target <3s P95 (down from <5s) | Industry benchmarks show 5s is abandonment threshold | Product |
+| 2025-12-24 | Switch analysis agents to Haiku 4.5 | Matches Sonnet 4 quality at 4-5x speed | Engineering |
+| 2025-12-24 | Evaluate Sonnet 4.5 for response_generator | 2x faster than Opus with minimal quality loss | Engineering |
+| 2025-12-24 | Mandate streaming for all responses | Perceived latency <1s critical for UX | Product |
+| 2025-12-24 | Add TTFT as primary latency metric | Users judge speed by first token, not completion | Product |
 
 ---
 

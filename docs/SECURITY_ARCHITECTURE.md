@@ -2685,7 +2685,7 @@ export {
 ```yaml
 # Mollei Security Deployment Checklist
 version: "1.0"
-last_updated: "2024-12"
+last_updated: "2025-12"
 
 pre_deployment:
   identity_and_access:

@@ -4445,19 +4445,19 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 
 | Date | Decision | Alternatives Considered | Rationale |
 |------|----------|------------------------|-----------|
-| 2024-12-24 | **TypeScript over Python** | Python, Rust | LangGraph.js at feature parity; unified stack with Next.js frontend; better concurrency via V8; type safety for agent contracts |
-| 2024-12-24 | **Next.js 15 App Router** | Express, Hono, standalone | Native SSE streaming; React Server Components; Vercel deployment; built-in API routes |
-| 2024-12-24 | **Vercel AI SDK** | Direct Anthropic SDK | `generateObject` with Zod; built-in streaming; multi-provider support |
-| 2024-12-24 | LangGraph.js over CrewAI | CrewAI, Autogen, custom | Production checkpointing; TypeScript-native; fine-grained control |
-| 2024-12-24 | Supervisor pattern over swarm | Swarm, hierarchical | Crisis safety requires deterministic routing |
-| 2024-12-24 | Haiku for safety_monitor | Sonnet | Speed critical (<500ms); simple classification task |
-| 2024-12-24 | Opus for response_generator | Sonnet | Quality > cost for core emotional response |
-| 2024-12-24 | PostgreSQL checkpointing | Redis, in-memory | Durability for long sessions; native LangGraph support |
-| 2024-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Pluggable backends, PII sanitization, cost aggregation |
-| 2024-12-24 | Trace sampling (50% prod) | 100% all environments | Balance observability with cost; full traces in dev |
-| 2024-12-24 | Strict sanitization mode | No sanitization | User messages contain PII; regulatory compliance |
-| 2024-12-24 | Drizzle ORM | Prisma, TypeORM | Lightweight; SQL-first; excellent TypeScript inference |
-| 2024-12-24 | Vitest over Jest | Jest, Node test runner | Faster; native ESM; better Vite integration |
+| 2025-12-24 | **TypeScript over Python** | Python, Rust | LangGraph.js at feature parity; unified stack with Next.js frontend; better concurrency via V8; type safety for agent contracts |
+| 2025-12-24 | **Next.js 15 App Router** | Express, Hono, standalone | Native SSE streaming; React Server Components; Vercel deployment; built-in API routes |
+| 2025-12-24 | **Vercel AI SDK** | Direct Anthropic SDK | `generateObject` with Zod; built-in streaming; multi-provider support |
+| 2025-12-24 | LangGraph.js over CrewAI | CrewAI, Autogen, custom | Production checkpointing; TypeScript-native; fine-grained control |
+| 2025-12-24 | Supervisor pattern over swarm | Swarm, hierarchical | Crisis safety requires deterministic routing |
+| 2025-12-24 | Haiku for safety_monitor | Sonnet | Speed critical (<500ms); simple classification task |
+| 2025-12-24 | Opus for response_generator | Sonnet | Quality > cost for core emotional response |
+| 2025-12-24 | PostgreSQL checkpointing | Redis, in-memory | Durability for long sessions; native LangGraph support |
+| 2025-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Pluggable backends, PII sanitization, cost aggregation |
+| 2025-12-24 | Trace sampling (50% prod) | 100% all environments | Balance observability with cost; full traces in dev |
+| 2025-12-24 | Strict sanitization mode | No sanitization | User messages contain PII; regulatory compliance |
+| 2025-12-24 | Drizzle ORM | Prisma, TypeORM | Lightweight; SQL-first; excellent TypeScript inference |
+| 2025-12-24 | Vitest over Jest | Jest, Node test runner | Faster; native ESM; better Vite integration |
 
 ---
 
@@ -4485,12 +4485,12 @@ The observability infrastructure implements enterprise-grade patterns for produc
 
 **Document Status**: Ready for implementation (v4.2)
 **Revision History**:
-- v1.0 (2024-12-24): Initial blueprint (Python/FastAPI)
-- v2.0 (2024-12-24): Enhanced observability from referenced project patterns
-- v3.0 (2024-12-24): Full TypeScript conversion (Next.js, LangGraph.js, Vercel AI SDK)
-- v4.0 (2024-12-24): Production-hardening with referenced architecture patterns
-- v4.1 (2024-12-24): Microsoft AI Agent Design Patterns integration
-- v4.2 (2024-12-24): North Star instrumentation (WRU-ETI, BEL calculation, ETI evaluation)
+- v1.0 (2025-12-24): Initial blueprint (Python/FastAPI)
+- v2.0 (2025-12-24): Enhanced observability from referenced project patterns
+- v3.0 (2025-12-24): Full TypeScript conversion (Next.js, LangGraph.js, Vercel AI SDK)
+- v4.0 (2025-12-24): Production-hardening with referenced architecture patterns
+- v4.1 (2025-12-24): Microsoft AI Agent Design Patterns integration
+- v4.2 (2025-12-24): North Star instrumentation (WRU-ETI, BEL calculation, ETI evaluation)
 
 **Key Changes in v4.2**:
 - Added section 6E: North Star Instrumentation (WRU-ETI)
