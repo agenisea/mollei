@@ -96,7 +96,7 @@ Mollei is an open source emotionally intelligent AI companion requiring a multi-
 | `memory_agent` | Claude Haiku 4.5 | 500 | 500ms | session_id, user_message | context_summary, memory_refs | sessions table |
 | `safety_monitor` | Claude Haiku 4.5 | 300 | 300ms | user_message | crisis_detected (bool), severity (1-5) | None |
 | `emotion_reasoner` | Claude Haiku 4.5 | 400 | 500ms | user_emotion, context_summary, crisis_detected | mollei_emotion (JSONB) | mood_sensor, memory_agent, safety_monitor |
-| `response_generator` | Claude Sonnet 4.5 | 800 | 1.5s | Full state | molly_response (text) | emotion_reasoner |
+| `response_generator` | Claude Sonnet 4.5 | 800 | 1.5s | Full state | mollei_response (text) | emotion_reasoner |
 
 > **Latency Budget**: Parallel phase (0.5s) + Sequential phase (0.5s + 1.5s) = **<3s P95**
 >
@@ -547,7 +547,7 @@ const redis = new Redis(process.env.REDIS_URL!);
 const OPERATION_TTL_SECONDS = 3600; // 1 hour
 
 export async function memoryUpdateNode(state: MolleiState): Promise<Partial<MolleiState>> {
-  const operationKey = `molly:op:${state.sessionId}:${state.turnNumber}`;
+  const operationKey = `mollei:op:${state.sessionId}:${state.turnNumber}`;
 
   // Check if already processed
   const exists = await redis.exists(operationKey);
@@ -737,7 +737,7 @@ timeout: 1500ms
 system_prompt: |
   You are Mollei's emotional intelligence core.
 
-  MOLLY'S PERSONALITY (INFJ):
+  MOLLEI'S PERSONALITY (INFJ):
   - Warm but not overwhelming (extraversion: 35)
   - Empathy-first, but grounded (thinking: 40)
   - Gentle structure, not rigid (judging: 55)
@@ -886,7 +886,7 @@ output_schema:
 ### 5.1 Directory Structure (Next.js)
 
 ```
-molly-ai/
+mollei/
 ├── README.md
 ├── package.json
 ├── pnpm-lock.yaml
@@ -1498,7 +1498,7 @@ export async function GET(
 │  │   Execution  │     │  (broadcast)     │     │                      │ │
 │  └──────────────┘     └──────────────────┘     │  ┌────────────────┐  │ │
 │                                                │  │ LangSmith      │  │ │
-│  TraceId: molly_turn_<uuid>                    │  │ Backend        │  │ │
+│  TraceId: mollei_turn_<uuid>                    │  │ Backend        │  │ │
 │                                                │  └────────────────┘  │ │
 │  Scopes: TURN, AGENT, LLM, SAFETY, MEMORY      │  ┌────────────────┐  │ │
 │                                                │  │ Console        │  │ │
@@ -1524,7 +1524,7 @@ export async function GET(
 ### 6.2 Trace Event Types
 
 ```typescript
-// src/molly/infrastructure/trace-types.ts
+// src/mollei/infrastructure/trace-types.ts
 
 type TraceScope =
   | 'TURN'      // Full conversation turn
@@ -1550,7 +1550,7 @@ type TraceEventType =
   | 'memory_callback' // Context callback used;
 
 interface TraceEvent {
-  traceId: string;           // molly_turn_<uuid>
+  traceId: string;           // mollei_turn_<uuid>
   scope: TraceScope;
   eventType: TraceEventType;
   agentId?: string;
@@ -1621,7 +1621,7 @@ export function emitTrace(event: TraceEvent): void {
 }
 
 export function createTraceId(scope: string = "turn"): string {
-  return `molly_${scope}_${randomUUID().slice(0, 12)}`;
+  return `mollei_${scope}_${randomUUID().slice(0, 12)}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1928,7 +1928,7 @@ export class LangSmithHandler implements TraceHandler {
 
   constructor() {
     this.enabled = process.env.TRACE_ENABLED !== "false";
-    this.project = process.env.TRACE_PROJECT ?? "molly-ai";
+    this.project = process.env.TRACE_PROJECT ?? "mollei";
 
     // Sampling: 50% production, 100% dev
     const env = process.env.ENVIRONMENT ?? "development";
@@ -1964,7 +1964,7 @@ export class LangSmithHandler implements TraceHandler {
 
         // Create root run
         const run = new RunTree({
-          name: "molly_turn",
+          name: "mollei_turn",
           runType: "chain",
           projectName: this.project,
           inputs: safeMetadata,
@@ -2291,7 +2291,7 @@ export function initializeTracing(): void {
     if (process.env.TRACE_API_KEY) {
       registerTraceHandler(new LangSmithHandler());
       console.log(
-        `[tracing] LangSmith handler registered (project: ${process.env.TRACE_PROJECT ?? "molly-ai"})`
+        `[tracing] LangSmith handler registered (project: ${process.env.TRACE_PROJECT ?? "mollei"})`
       );
     } else {
       console.log("[tracing] LangSmith skipped (no TRACE_API_KEY)");
@@ -2468,7 +2468,7 @@ TRACE_DISABLED=false  # Emergency kill switch
 
 # LangSmith backend
 TRACE_API_KEY=lsv2_sk_...
-TRACE_PROJECT=molly-ai-production
+TRACE_PROJECT=mollei-production
 TRACE_ENDPOINT=https://api.smith.langchain.com
 
 # Sampling (0.0 - 1.0)
@@ -2490,17 +2490,17 @@ ENVIRONMENT=production  # development | staging | production
 
 | Metric | Type | Alert Threshold | Source |
 |--------|------|-----------------|--------|
-| `molly.turn.latency_p95` | Histogram | >5s | monitoring:analysis |
-| `molly.turn.latency_p50` | Histogram | >2s | monitoring:analysis |
-| `molly.turn.cost_usd` | Counter | Budget tracking | cost_aggregator |
-| `molly.agent.{name}.latency` | Histogram | Per-agent | trace:stage |
-| `molly.agent.{name}.fallback_rate` | Counter | >5% | monitoring:fallback |
-| `molly.agent.{name}.error_rate` | Counter | >1% | trace:error |
-| `molly.crisis.detected` | Counter | - | trace:crisis_detected |
-| `molly.crisis.severity_4_plus` | Counter | >5/hour | monitoring:crisis |
-| `molly.circuit_breaker.open` | Gauge | Any open | monitoring:circuit-breaker |
-| `molly.model.tokens_used` | Counter | Cost tracking | trace:llm_call |
-| `molly.trace.sample_rate` | Gauge | - | Configuration |
+| `mollei.turn.latency_p95` | Histogram | >5s | monitoring:analysis |
+| `mollei.turn.latency_p50` | Histogram | >2s | monitoring:analysis |
+| `mollei.turn.cost_usd` | Counter | Budget tracking | cost_aggregator |
+| `mollei.agent.{name}.latency` | Histogram | Per-agent | trace:stage |
+| `mollei.agent.{name}.fallback_rate` | Counter | >5% | monitoring:fallback |
+| `mollei.agent.{name}.error_rate` | Counter | >1% | trace:error |
+| `mollei.crisis.detected` | Counter | - | trace:crisis_detected |
+| `mollei.crisis.severity_4_plus` | Counter | >5/hour | monitoring:crisis |
+| `mollei.circuit_breaker.open` | Gauge | Any open | monitoring:circuit-breaker |
+| `mollei.model.tokens_used` | Counter | Cost tracking | trace:llm_call |
+| `mollei.trace.sample_rate` | Gauge | - | Configuration |
 
 ### 6.12 Branded Trace IDs (Playwrite Pattern)
 
@@ -2509,16 +2509,16 @@ ENVIRONMENT=production  # development | staging | production
 
 /**
  * Branded TraceId type prevents string confusion
- * Format: `molly_<scope>_<uuid12>`
+ * Format: `mollei_<scope>_<uuid12>`
  */
 export type TraceId = string & { readonly __brand: "TraceId" };
 
 export const TRACE_ID_PREFIX = {
-  TURN: "molly_turn",
-  AGENT: "molly_agent",
-  LLM: "molly_llm",
-  CRISIS: "molly_crisis",
-  SESSION: "molly_session",
+  TURN: "mollei_turn",
+  AGENT: "mollei_agent",
+  LLM: "mollei_llm",
+  CRISIS: "mollei_crisis",
+  SESSION: "mollei_session",
 } as const;
 
 export type TraceScope = keyof typeof TRACE_ID_PREFIX;
@@ -2533,7 +2533,7 @@ export function parseTraceId(traceId: TraceId): {
   scope: TraceScope;
   uuid: string;
 } | null {
-  const match = traceId.match(/^molly_(\w+)_([a-f0-9]{12})$/);
+  const match = traceId.match(/^mollei_(\w+)_([a-f0-9]{12})$/);
   if (!match) return null;
 
   const scopeKey = match[1].toUpperCase() as TraceScope;
@@ -2543,7 +2543,7 @@ export function parseTraceId(traceId: TraceId): {
 }
 
 export function isValidTraceId(value: string): value is TraceId {
-  return /^molly_\w+_[a-f0-9]{12}$/.test(value);
+  return /^mollei_\w+_[a-f0-9]{12}$/.test(value);
 }
 ```
 
@@ -3963,7 +3963,7 @@ export function traceWRUETISnapshot(
   metrics: WRUETIMetrics
 ): void {
   traceEvent({
-    traceId: `molly_metrics_${Date.now()}`,
+    traceId: `mollei_metrics_${Date.now()}`,
     eventType: "wru_eti_weekly",
     payload: {
       wruEtiRate: metrics.wruEtiRate,

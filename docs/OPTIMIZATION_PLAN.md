@@ -204,7 +204,7 @@ const response = await anthropic.messages.create({
   system: [
     {
       type: "text",
-      text: MOLLY_SYSTEM_PROMPT, // ~2000 tokens, cached
+      text: MOLLEI_SYSTEM_PROMPT, // ~2000 tokens, cached
       cache_control: { type: "ephemeral" }
     }
   ],
@@ -432,8 +432,8 @@ interface LatencyMetrics {
 **Document Status**: Strategic Recommendation
 **Next Review**: After Phase 4 validation
 **Related Documents**:
-- `molly-ai-architecture-blueprint.md` (v4.2) - Technical architecture
-- `MOLLY AI NORTHSTAR.md` - Strategic specification
+- [ARCHITECTURE_BLUEPRINT.md](ARCHITECTURE_BLUEPRINT.md) - Technical architecture
+- [NORTHSTAR.md](NORTHSTAR.md) - Strategic specification
 
 ---
 

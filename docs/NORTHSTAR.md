@@ -697,9 +697,9 @@ CREATE TABLE conversation_turns (
     session_id      UUID NOT NULL REFERENCES sessions(id),
     turn_number     INTEGER NOT NULL,
     user_message    TEXT NOT NULL,
-    molly_response  TEXT NOT NULL,
+    mollei_response TEXT NOT NULL,
     user_emotion    JSONB NOT NULL,
-    molly_emotion   JSONB NOT NULL,
+    mollei_emotion  JSONB NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -977,7 +977,7 @@ over information delivery.
 This North Star specification is the **strategic anchor**. Implementation details live in supporting documents:
 
 ```
-MOLLY AI NORTHSTAR.md (this document)
+NORTHSTAR.md (this document)
 ├── Strategic decisions
 ├── Scope boundaries
 ├── Success metrics
@@ -1002,7 +1002,6 @@ Supporting Documentation
 | **ETI** | Emotional Trajectory Improvement - positive change in BEL |
 | **WRU-ETI** | Weekly Returning Users with ETI - North Star metric |
 | **MBTI** | Myers-Briggs Type Indicator - personality framework |
-| **JTBD** | Jobs To Be Done - user research methodology |
 | **D7/D30** | Day 7/Day 30 retention - % of users returning |
 | **HL3** | Hippocratic License 3.0 - ethical open source license |
 | **RFC** | Request for Comments - community decision-making process |
