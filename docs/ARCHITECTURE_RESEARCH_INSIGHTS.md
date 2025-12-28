@@ -1,14 +1,14 @@
 # Mollei Architecture Research Insights
 
 > **Tier**: 3 — Research (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-27-25
+> **Last Updated**: 12-28-25 10:38PM PST
 > **Status**: Validated
 
 ---
 
 ## Executive Summary
 
-This document captures research findings from 15 production multi-agent systems and academic implementations to validate Mollei's architecture decisions. **Conclusion: Mollei's approach is not just ideal—it exceeds current industry standards in several key areas.**
+This document captures research findings from 15 multi-agent systems and academic implementations to validate Mollei's architecture decisions. **Conclusion: Mollei's approach aligns with current industry standards and research best practices.**
 
 ---
 
@@ -37,7 +37,7 @@ This document captures research findings from 15 production multi-agent systems 
 | **Crisis Safety** | Human escalation for high-risk | Quality-gated routing + confidence scoring | ✅ Exceeds standard |
 | **Modular Agents** | Specialized, independently auditable | Mood Sensor, Memory, Safety, Response | ✅ Aligned |
 | **Self-Correction** | Retry with structured feedback | `empathyGaps`, `missedCues`, `toneIssues` | ✅ Best-in-class |
-| **Two-Stage Processing** | Local model → LLM escalation | Local sentiment → Claude (61% latency ↓) | ✅ Production pattern |
+| **Two-Stage Processing** | Local model → LLM escalation | Local sentiment → Claude (61% latency ↓) | ✅ Industry pattern |
 | **Observability** | OpenTelemetry + vendor backends | OTEL-first, LangSmith optional | ✅ Vendor-neutral |
 | **Framework Choice** | Custom > LangGraph for control | Framework-agnostic pipeline | ✅ Correct decision |
 
@@ -94,7 +94,7 @@ Microsoft research indicates orchestrator bottleneck at 10-20 agents:
 | Emotional Focus | Strategy selection | Full emotional response |
 | Implementation | Research | Implementation design |
 
-**Verdict**: Similar approach; Mollei adds production hardening.
+**Verdict**: Similar approach; Mollei adds structured retry feedback.
 
 ### 3.3 Microsoft Hierarchical Multi-Agent
 
@@ -169,7 +169,7 @@ function getResponseQualityThreshold(state: MolleiState): number {
 
 Research confirms LangGraph creates vendor lock-in:
 
-> *"Framework-agnostic; no vendor lock-in... Production-tested patterns."*
+> *"Framework-agnostic; no vendor lock-in... Tested patterns."*
 
 Custom pipeline orchestrator provides:
 - Full control over execution flow
@@ -190,7 +190,7 @@ Custom pipeline orchestrator provides:
 
 ---
 
-## 6. Production Readiness Assessment
+## 6. Implementation Readiness Assessment
 
 ### 6.1 Checklist
 
@@ -228,11 +228,11 @@ The architecture **exceeds current industry standards** in several areas:
 
 3. **Observability**: OpenTelemetry-first is the correct vendor-neutral choice, with LangSmith as optional backend
 
-4. **Performance**: Two-stage processing with 61% latency reduction and 70% cost savings is optimal for production
+4. **Performance**: Two-stage processing with 61% latency reduction and 70% cost savings is optimal for this use case
 
-5. **Framework**: Custom orchestrator over LangGraph is the production pattern for enterprise systems requiring control
+5. **Framework**: Custom orchestrator over LangGraph is the recommended pattern for systems requiring control
 
-**Risk Level**: Low. The patterns are validated across MindCare, MultiAgentESC, Microsoft, and production enterprise systems.
+**Risk Level**: Low. The patterns are validated across MindCare, MultiAgentESC, Microsoft, and industry systems.
 
 ---
 

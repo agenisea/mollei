@@ -1,11 +1,11 @@
 # MOLLEI: Security Architecture
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-27-25 02:00PM PST
-> **Status**: Production-Ready Design
+> **Last Updated**: 12-28-25 10:38PM PST
+> **Status**: v1.0 Design
 > **Scope**: Authentication, Authorization, Data Protection, Safety
 
-*Production-ready security architecture for emotionally intelligent multi-agent AI*
+*Security architecture for emotionally intelligent multi-agent AI*
 
 ---
 
@@ -177,7 +177,7 @@ This security blueprint addresses the **OWASP Top 10 for Agentic Applications (2
 │  │  │ JWT token │  │              │  │ role        │  │                     │
 │  │  │ consent   │  │              │  │ cert/key    │  │                     │
 │  │  └───────────┘  │              │  │ capabilities│  │                     │
-│  │                  │              │  └─────────────┘  │                     │
+│  │                 │              │  └─────────────┘  │                     │
 │  └─────────────────┘              └───────────────────┘                     │
 │                                                                             │
 │  SESSION IDENTITY                 SERVICE IDENTITY                          │
@@ -2782,7 +2782,7 @@ runtime_monitoring:
 │  16. Cross-session attack correlation            Month 3                    │
 │  17. Federated threat intelligence               Month 4                    │
 │                                                                             │
-│  ESTIMATED TOTAL: 4 weeks to production-ready, 4 months to hardened         │
+│  ESTIMATED TOTAL: 4 weeks for P0+P1, 4 months for full implementation       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

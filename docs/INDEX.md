@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-27-25 02:00PM PST
+> **Last Updated**: 12-28-25 10:38PM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -32,7 +32,7 @@
 │                                                                           │
 │  ┌───────────────────────────────────┐  ┌──────────────────────────────┐  │
 │  │  ARCHITECTURE_BLUEPRINT.md        │  │  SECURITY_ARCHITECTURE.md    │  │
-│  │                                   │  │                              │  │
+│  │  (with architecture/ modules)     │  │                              │  │
 │  │  • Agent topology (5 agents)      │  │  • Threat model (OWASP)      │  │
 │  │  • Custom pipeline orchestration  │  │  • Authentication/authz      │  │
 │  │  • State schema (Zod)             │  │  • Trust boundaries          │  │
@@ -67,12 +67,67 @@
 
 ---
 
+## Architecture Blueprint Modules
+
+The ARCHITECTURE_BLUEPRINT.md has been modularized into focused documents in `docs/architecture/`:
+
+```
+ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
+    │
+    ├── architecture/PIPELINE_ORCHESTRATION.md (1,397 lines)
+    │   • State schema (Zod-based)
+    │   • Pipeline orchestrator implementation
+    │   • Microsoft AI Agent Design Patterns
+    │   • Self-correction patterns
+    │   • Performance optimization
+    │
+    ├── architecture/RESILIENCE_PATTERNS.md (247 lines)
+    │   • Circuit breaker configuration
+    │   • Fallback chains per agent
+    │   • Timeout handling
+    │   • Idempotency patterns
+    │
+    ├── architecture/AGENT_PROMPTS.md (1,231 lines)
+    │   • System prompts for all 5 agents
+    │   • JTBD framework (job_to_be_done, success_criteria)
+    │   • 21 few-shot examples
+    │   • Edge case handling
+    │
+    ├── architecture/IMPLEMENTATION_SCAFFOLD.md (646 lines)
+    │   • Next.js directory structure
+    │   • BaseAgent class
+    │   • Agent implementations
+    │   • API routes
+    │
+    ├── architecture/OBSERVABILITY.md (2,256 lines)
+    │   • Trace architecture and events
+    │   • OpenTelemetry handler (primary)
+    │   • LangSmith handler (optional)
+    │   • Cost aggregator
+    │   • PII sanitization
+    │   • North Star instrumentation (WRU-ETI)
+    │
+    └── architecture/TESTING_STRATEGY.md (240 lines)
+        • Test categories and coverage
+        • Vitest configuration
+        • Golden datasets for safety
+        • Integration tests
+```
+
+---
+
 ## Quick Reference
 
 | Document | Tier | Purpose | When to Use |
 |----------|------|---------|-------------|
 | [NORTHSTAR.md](NORTHSTAR.md) | 1 | Strategic direction | Product decisions, prioritization, metrics |
 | [ARCHITECTURE_BLUEPRINT.md](ARCHITECTURE_BLUEPRINT.md) | 2 | Technical implementation | Building agents, orchestration, resilience |
+| ↳ [architecture/PIPELINE_ORCHESTRATION.md](architecture/PIPELINE_ORCHESTRATION.md) | 2 | Pipeline details | State schema, orchestrator, patterns |
+| ↳ [architecture/RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | 2 | Failure handling | Circuit breakers, fallbacks, timeouts |
+| ↳ [architecture/AGENT_PROMPTS.md](architecture/AGENT_PROMPTS.md) | 2 | Agent contracts | System prompts, JTBD, examples |
+| ↳ [architecture/IMPLEMENTATION_SCAFFOLD.md](architecture/IMPLEMENTATION_SCAFFOLD.md) | 2 | Code structure | Directory layout, base classes, routes |
+| ↳ [architecture/OBSERVABILITY.md](architecture/OBSERVABILITY.md) | 2 | Tracing & metrics | OpenTelemetry, LangSmith, North Star |
+| ↳ [architecture/TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | 2 | Test patterns | Vitest, golden datasets, integration |
 | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) | 2 | Security patterns | Auth, threats, compliance, incident response |
 | [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) | 3 | Performance work | Latency optimization, model selection |
 | [EMOTIONAL_AI_METHODOLOGY.md](EMOTIONAL_AI_METHODOLOGY.md) | 3 | Research basis | Understanding approach, ethics, citations |
@@ -99,6 +154,8 @@ NORTHSTAR.md
     │
     ├──► ARCHITECTURE_BLUEPRINT.md (implements North Star requirements)
     │    │
+    │    ├──► architecture/*.md (modular implementation details)
+    │    │
     │    ├──► SECURITY_ARCHITECTURE.md (secures the architecture)
     │    │
     │    └──► ARCHITECTURE_RESEARCH_INSIGHTS.md (validates patterns)
@@ -112,14 +169,20 @@ NORTHSTAR.md
 
 ## Current State
 
-| Document | Status | Last Updated |
-|----------|--------|--------------|
-| NORTHSTAR.md | Active | December 2025 |
-| ARCHITECTURE_BLUEPRINT.md | Active | December 2025 |
-| SECURITY_ARCHITECTURE.md | Active | December 2025 |
-| OPTIMIZATION_PLAN.md | Active (recommendations integrated) | December 2025 |
-| EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 |
-| ARCHITECTURE_RESEARCH_INSIGHTS.md | Active | December 2025 |
+| Document | Status | Last Updated | Lines |
+|----------|--------|--------------|-------|
+| NORTHSTAR.md | Active | December 2025 | — |
+| ARCHITECTURE_BLUEPRINT.md | Active (Modularized) | December 2025 | ~624 |
+| ↳ architecture/PIPELINE_ORCHESTRATION.md | Active | December 2025 | 1,397 |
+| ↳ architecture/RESILIENCE_PATTERNS.md | Active | December 2025 | 247 |
+| ↳ architecture/AGENT_PROMPTS.md | Active | December 2025 | 1,231 |
+| ↳ architecture/IMPLEMENTATION_SCAFFOLD.md | Active | December 2025 | 646 |
+| ↳ architecture/OBSERVABILITY.md | Active | December 2025 | 2,256 |
+| ↳ architecture/TESTING_STRATEGY.md | Active | December 2025 | 240 |
+| SECURITY_ARCHITECTURE.md | Active | December 2025 | — |
+| OPTIMIZATION_PLAN.md | Active | December 2025 | — |
+| EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 | — |
+| ARCHITECTURE_RESEARCH_INSIGHTS.md | Active | December 2025 | — |
 
 ---
 
@@ -129,8 +192,9 @@ When adding or modifying documentation:
 
 1. **Check tier placement** — Does this belong in an existing doc or need a new one?
 2. **Maintain hierarchy** — Strategic docs shouldn't contain implementation details
-3. **Cross-reference** — Link to related docs using relative paths
-4. **Update this index** — Keep the hierarchy current
+3. **Use architecture/ modules** — For implementation details, add to appropriate module
+4. **Cross-reference** — Link to related docs using relative paths
+5. **Update this index** — Keep the hierarchy current
 
 ---
 
