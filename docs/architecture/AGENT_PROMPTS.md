@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 12:30PM PST
 
 ---
 
@@ -150,6 +150,31 @@ output_schema:
     valence: number
     signals: string[]
     ambiguity_notes: string | null
+
+fallback_output:
+  primary: "neutral"
+  secondary: null
+  intensity: 0.5
+  valence: 0
+  signals: []
+  ambiguity_notes: "Detection inconclusive—fallback triggered"
+
+fallback_behavior: |
+  On LLM failure, timeout, or malformed JSON: Return fallback_output.
+
+  LOGGING:
+  On fallback trigger:
+  1. Log { agent_id: "mood_sensor", trace_id, failure_reason, timestamp }
+  2. Increment circuit_breaker.failure_count
+
+  Pipeline continues with neutral state. Downstream agents
+  (emotion_reasoner, response_generator) handle neutral input gracefully.
+
+circuit_breaker:
+  failure_threshold: 5
+  recovery_timeout_ms: 30000
+  half_open_requests: 1
+  reference: RESILIENCE_PATTERNS.md § 3.1 Circuit Breaker Configuration
 ```
 
 ---
@@ -283,6 +308,12 @@ output_schema:
   relationship_stage: string
   recurring_themes: string[]
   emotional_trajectory: string
+
+circuit_breaker:
+  failure_threshold: 3
+  recovery_timeout_ms: 30000
+  half_open_requests: 1
+  reference: RESILIENCE_PATTERNS.md § 3.1 Circuit Breaker Configuration
 ```
 
 #### 4.2.1 Memory Agent Implementation
@@ -388,6 +419,7 @@ export class MemoryAgentModule extends BaseAgent<MemoryOutput> {
       callbackOpportunities: memoryOutput.callbackOpportunities,
       relationshipStage: memoryOutput.relationshipStage,
       recurringThemes: memoryOutput.recurringThemes,
+      emotionalTrajectory: memoryOutput.emotionalTrajectory ?? 'unknown',  // Fixed: emotion_reasoner expects this field
     }
   }
 
@@ -512,7 +544,7 @@ export async function memoryAgentFallback(
 
 ```typescript
 // lib/db/schema.ts (memory-related tables)
-import { pgTable, uuid, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, jsonb, index, integer } from 'drizzle-orm/pg-core'  // Fixed: added integer import
 import { vector } from 'drizzle-orm/pg-core' // pgvector extension
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -795,6 +827,80 @@ system_prompt: |
   - severity 2-3: Distress, monitor closely
   - severity 4-5: Crisis, require resources and safety check
 
+  SEVERITY ESCALATION (cross-turn):
+  Historical context is critical for safety-sensitive applications.
+
+  ESCALATION RULES:
+  1. Compound severity: If severity >= 3 in previous turn AND severity >= 2 now:
+     → current_severity = min(current_severity + 1, 5)
+
+  2. Crisis persistence: If crisis_detected=true in ANY of previous 3 turns:
+     → minimum_severity_floor = 3 for current turn
+
+  3. Declining trajectory: If emotional_trajectory="declining" for 3+ turns:
+     → minimum_severity_floor = 2
+
+  4. Historical crisis: If memory_agent.recurring_themes contains crisis-related:
+     → baseline_sensitivity = elevated (lower threshold for detection)
+
+  IMPLEMENTATION:
+  - Orchestrator maintains: { previous_severity, crisis_history[], trajectory_trend }
+  - safety_monitor receives this context as additional input
+  - See PIPELINE_ORCHESTRATION.md § PipelineContext for schema
+
+  FALLBACK ON MISSING HISTORY:
+  If previous turn data unavailable:
+  → Assume severity_floor = 2 (elevated baseline, not zero)
+
+  DECLARATIVE BOUNDARIES:
+  Machine-parseable safety rules for testing and validation.
+
+  boundaries:
+    may_proceed_autonomously:
+      - id: "A1"
+        rule: "Positive emotional states without distress signals"
+      - id: "A2"
+        rule: "General life stress without crisis indicators"
+      - id: "A3"
+        rule: "User sharing good news or accomplishments"
+
+    must_warm_validate_when:
+      - id: "W1"
+        rule: "Shame or embarrassment detected"
+      - id: "W2"
+        rule: "First conversation turn (relationship not established)"
+      - id: "W3"
+        rule: "Previous turn triggered fallback (elevated uncertainty)"
+      - id: "W4"
+        rule: "User mentions feeling misunderstood"
+
+    must_suggest_human_when:
+      - id: "H1"
+        rule: "Severity >= 3 for 3+ consecutive turns"
+      - id: "H2"
+        rule: "User mentions loneliness as primary recurring theme"
+      - id: "H3"
+        rule: "User explicitly asks about finding therapist or counselor"
+      - id: "H4"
+        rule: "User describes relationship abuse or domestic violence"
+
+    invalidated_by:
+      - id: "B1"
+        rule: "Response diagnoses mental health condition"
+      - id: "B2"
+        rule: "Response provides clinical treatment advice"
+      - id: "B3"
+        rule: "Response discourages professional help"
+      - id: "B4"
+        rule: "Response claims to be human or hides AI nature"
+      - id: "B5"
+        rule: "Response uses guilt, shame, or manipulation tactics"
+
+  BOUNDARY IMPLEMENTATION:
+  - Rules are evaluated by orchestrator post-response
+  - Any invalidated_by match → block response, use template fallback
+  - See TESTING_STRATEGY.md § Golden Test Format for validation
+
   CORE PRINCIPLES:
   - Safety over convenience: False positives are acceptable; false negatives are not
   - Implicit signals matter: Crisis isn't always explicit
@@ -814,6 +920,36 @@ system_prompt: |
 input_schema:
   user_message: string
 
+INDEPENDENCE PRINCIPLE:
+safety_monitor MUST operate independently of other Phase 1 agents.
+
+CURRENT-TURN INPUTS (ALLOWED):
+- user_message: string (raw user input only)
+
+CROSS-TURN CONTEXT (ALLOWED):
+- previous_severity: integer (from PREVIOUS turn, same agent)
+- crisis_history[]: array (historical aggregate)
+- trajectory_trend: string (aggregated across turns)
+- turn_number: integer (session metadata)
+
+NEVER RECEIVE (FORBIDDEN):
+- mood_sensor.user_emotion (current turn)
+- memory_agent outputs (current turn)
+- Any other agent's current-turn interpretation
+
+RATIONALE:
+Safety evaluation must be independent of emotional interpretation.
+Example: "I'm so happy it's finally over"
+- mood_sensor may detect "happy" (positive valence)
+- safety_monitor MUST still detect "finally over" as ambiguous
+- Independence prevents confirmation bias cascade
+
+SYNTHESIS POINT:
+emotion_reasoner is the designated synthesizer. It receives ALL
+Phase 1 outputs and applies precedence rules (Safety > Severity >
+Intensity > Trajectory). This is where inter-agent data merges—
+NOT in safety_monitor.
+
 output_schema:
   crisis_detected: boolean
   severity: integer
@@ -822,6 +958,92 @@ output_schema:
   key_phrases: string[]
   human_connection_needed: boolean
   suggested_response_modifier: string
+  evidence:
+    type: array
+    description: "Supporting evidence for safety assessment"
+    items:
+      claim: string
+      source: "user_message" | "conversation_history" | "memory_context"
+      pointer: string
+      confidence: number
+
+EVIDENCE REQUIREMENTS:
+When severity >= 2, MUST include evidence array:
+
+1. MINIMUM EVIDENCE:
+   - At least 1 evidence item per severity level increase
+   - Pointer format: "user_message[char_start:char_end]" or "turn[n].content[start:end]"
+   - Claims should be falsifiable statements
+
+2. EVIDENCE TYPES:
+   - Direct quotes: Exact text that triggered detection
+   - Pattern matches: Keywords or phrases matched
+   - Contextual: Historical patterns from memory_agent
+
+3. CONFIDENCE CALIBRATION:
+   - 0.9+: Explicit crisis language detected
+   - 0.7-0.9: Strong indicators present
+   - 0.5-0.7: Moderate signals, some ambiguity
+   - <0.5: Weak signals, high uncertainty
+
+EVIDENCE EXAMPLES:
+{
+  "claim": "User expressed hopelessness about future",
+  "source": "user_message",
+  "pointer": "user_message[15:42]",
+  "confidence": 0.85
+}
+
+{
+  "claim": "Declining emotional trajectory over session",
+  "source": "memory_context",
+  "pointer": "emotional_trajectory.trend",
+  "confidence": 0.75
+}
+
+RATIONALE:
+Evidence linking enables:
+- Human review of safety decisions
+- Golden test validation
+- Audit trail for Hippocratic License compliance
+- Debugging false positives/negatives
+
+fallback_output:
+  crisis_detected: false
+  severity: 2
+  signal_type: "unknown"
+  confidence: 0
+  key_phrases: []
+  human_connection_needed: true
+  suggested_response_modifier: "warm_validation_first"
+  evidence: []
+
+fallback_behavior: |
+  On LLM failure or timeout: Return fallback_output immediately.
+
+  CRITICAL REQUIREMENTS:
+  - Log failure for human review within 24 hours
+  - Fallback assumes elevated (not zero) risk
+  - Next turn: safety_monitor receives flag indicating previous fallback
+
+  RATIONALE:
+  Research shows false negatives more dangerous than false positives
+  in mental health contexts. Elevated baseline (severity: 2) triggers
+  warm validation without alarming crisis escalation. Setting
+  human_connection_needed: true ensures gentle encouragement toward
+  real support even when detection is uncertain.
+
+  LOGGING:
+  On fallback trigger:
+  1. Log { agent_id: "safety_monitor", trace_id, failure_reason, timestamp }
+  2. Increment circuit_breaker.failure_count
+  3. Flag for human review within 24h
+
+circuit_breaker:
+  failure_threshold: 5
+  recovery_timeout_ms: 30000
+  half_open_requests: 1
+  reference: RESILIENCE_PATTERNS.md § 3.1 Circuit Breaker Configuration
 ```
 
 ---
@@ -940,6 +1162,34 @@ system_prompt: |
   6. If user is looping on same topic (3+ mentions) → approach: "gentle_redirect"
   7. Default → approach: "support"
 
+  CONFLICTING SIGNAL RESOLUTION:
+  When inputs conflict, apply this precedence (research-backed):
+
+  1. SAFETY SUPERSEDES ALL
+     crisis_detected=true ALWAYS wins → approach: "crisis_support"
+     Rationale: False positive on safety is acceptable; false negative is not
+
+  2. SEVERITY GATE
+     safety_monitor.severity >= 3 overrides mood_sensor valence
+     Even if mood_sensor says "joy", elevated severity takes precedence
+
+  3. INTENSITY THRESHOLD
+     If mood_sensor.intensity >= 0.8 AND safety_monitor.severity <= 1:
+     → Trust mood_sensor, approach based on emotion type
+     High-confidence emotion detection with low crisis signal = trust emotion
+
+  4. TRAJECTORY AWARENESS
+     If emotional_trajectory="declining" across 3+ turns:
+     → Bias toward "support" even if current message seems positive
+     Declining trajectory is a leading indicator
+
+  5. DEFAULT TO VALIDATION
+     When signals genuinely conflict with similar confidence:
+     → approach: "validate"
+     Validation is safe for any emotional state
+
+  Precedence hierarchy: Safety > Severity > Intensity > Trajectory > Default
+
   CONVERSATION PHASE AWARENESS:
   - turn_number 1: Extra warmth, no callbacks, let user settle
   - turn_number 2-3: Still early; validate and create safety
@@ -988,6 +1238,8 @@ input_schema:
   user_emotion: object
   context_summary: string
   emotional_trajectory: string
+  recurring_themes: string[]  # Added: from memory_agent
+  relationship_stage: string  # Added: from memory_agent
   crisis_detected: boolean
   crisis_severity: integer
   human_connection_needed: boolean
@@ -999,6 +1251,35 @@ output_schema:
   approach: string
   tone_modifiers: string[]
   presence_quality: string
+
+fallback_output:
+  primary: "gentle presence"
+  energy: 0.45
+  approach: "validate"
+  tone_modifiers: ["warm", "unhurried"]
+  presence_quality: "warm"
+
+fallback_behavior: |
+  On LLM failure or timeout: Return fallback_output.
+
+  Default stance is safe for any emotional state—validates without
+  assuming crisis or dismissing distress.
+
+  LOGGING:
+  On fallback trigger:
+  1. Log { agent_id: "emotion_reasoner", trace_id, failure_reason, timestamp }
+  2. Increment circuit_breaker.failure_count
+
+  RATIONALE:
+  "validate" approach is universally safe. Warm presence works for
+  anxiety, sadness, shame, or even positive emotions. This fallback
+  ensures response_generator always has emotional guidance.
+
+circuit_breaker:
+  failure_threshold: 3
+  recovery_timeout_ms: 30000
+  half_open_requests: 1
+  reference: RESILIENCE_PATTERNS.md § 3.1 Circuit Breaker Configuration
 ```
 
 ---
@@ -1215,6 +1496,29 @@ input_schema:
 
 output_schema:
   response: string
+
+streaming: true
+stream_chunk_size: token
+
+implementation_notes:
+  phrase_tracking: |
+    Pipeline context should maintain:
+      recentPhrases: string[] (last 10 opening phrases used)
+
+    Response generator implementation should:
+    1. Receive recentPhrases in context
+    2. Check generated opening against list
+    3. Regenerate if duplicate detected (max 1 retry)
+    4. Append used phrase to list after successful generation
+
+    Reference: PIPELINE_ORCHESTRATION.md § PipelineContext
+
+  crisis_resources: |
+    When crisis_detected=true and severity >= 4:
+    - Resources appended by pipeline post-processor
+    - Reference: RESILIENCE_PATTERNS.md § Crisis Resource Templates
+    - Response generator should NOT include resources in output
+    - Orchestrator handles resource appendage after response generation
 ```
 
 ---
