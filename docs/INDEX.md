@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 11:15AM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -132,6 +132,7 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
 | [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) | 3 | Performance work | Latency optimization, model selection |
 | [EMOTIONAL_AI_METHODOLOGY.md](EMOTIONAL_AI_METHODOLOGY.md) | 3 | Research basis | Understanding approach, ethics, citations |
 | [ARCHITECTURE_RESEARCH_INSIGHTS.md](ARCHITECTURE_RESEARCH_INSIGHTS.md) | 3 | Architecture validation | Pattern validation, competitive analysis |
+| [BRAND_GUIDELINES.md](BRAND_GUIDELINES.md) | 3 | Brand identity | Voice, tone, visual standards |
 
 ---
 
@@ -156,33 +157,36 @@ NORTHSTAR.md
     │    │
     │    ├──► architecture/*.md (modular implementation details)
     │    │
-    │    ├──► SECURITY_ARCHITECTURE.md (secures the architecture)
-    │    │
     │    └──► ARCHITECTURE_RESEARCH_INSIGHTS.md (validates patterns)
+    │
+    ├──► SECURITY_ARCHITECTURE.md (secures the architecture)
     │
     ├──► OPTIMIZATION_PLAN.md (optimizes against North Star metrics)
     │
-    └──► EMOTIONAL_AI_METHODOLOGY.md (research foundation for North Star)
+    ├──► EMOTIONAL_AI_METHODOLOGY.md (research foundation for North Star)
+    │
+    └──► BRAND_GUIDELINES.md (brand identity and voice)
 ```
 
 ---
 
 ## Current State
 
-| Document | Status | Last Updated | Lines |
-|----------|--------|--------------|-------|
-| NORTHSTAR.md | Active | December 2025 | — |
-| ARCHITECTURE_BLUEPRINT.md | Active (Modularized) | December 2025 | ~624 |
-| ↳ architecture/PIPELINE_ORCHESTRATION.md | Active | December 2025 | 1,397 |
-| ↳ architecture/RESILIENCE_PATTERNS.md | Active | December 2025 | 247 |
-| ↳ architecture/AGENT_PROMPTS.md | Active | December 2025 | 1,231 |
-| ↳ architecture/IMPLEMENTATION_SCAFFOLD.md | Active | December 2025 | 646 |
-| ↳ architecture/OBSERVABILITY.md | Active | December 2025 | 2,256 |
-| ↳ architecture/TESTING_STRATEGY.md | Active | December 2025 | 240 |
-| SECURITY_ARCHITECTURE.md | Active | December 2025 | — |
-| OPTIMIZATION_PLAN.md | Active | December 2025 | — |
-| EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 | — |
-| ARCHITECTURE_RESEARCH_INSIGHTS.md | Active | December 2025 | — |
+| Document | Status | Last Updated |
+|----------|--------|--------------|
+| NORTHSTAR.md | Active | December 2025 |
+| ARCHITECTURE_BLUEPRINT.md | Active (Modularized) | December 2025 |
+| ↳ architecture/PIPELINE_ORCHESTRATION.md | Active | December 2025 |
+| ↳ architecture/RESILIENCE_PATTERNS.md | Active | December 2025 |
+| ↳ architecture/AGENT_PROMPTS.md | Active | December 2025 |
+| ↳ architecture/IMPLEMENTATION_SCAFFOLD.md | Active | December 2025 |
+| ↳ architecture/OBSERVABILITY.md | Active | December 2025 |
+| ↳ architecture/TESTING_STRATEGY.md | Active | December 2025 |
+| SECURITY_ARCHITECTURE.md | Active | December 2025 |
+| OPTIMIZATION_PLAN.md | Active | December 2025 |
+| EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 |
+| ARCHITECTURE_RESEARCH_INSIGHTS.md | Active | December 2025 |
+| BRAND_GUIDELINES.md | Active | December 2025 |
 
 ---
 

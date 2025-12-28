@@ -1,7 +1,7 @@
 # MOLLEI: Multi-Agent Architecture Blueprint
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 11:15AM PST
 > **Status**: Open Source
 > **Modularized**: This document has been split into focused modules in `docs/architecture/`
 
@@ -22,14 +22,14 @@ This architecture blueprint has been modularized for maintainability. The core d
 
 Detailed implementation specifications are in `docs/architecture/`:
 
-| Document | Content | Lines |
-|----------|---------|-------|
-| [PIPELINE_ORCHESTRATION.md](architecture/PIPELINE_ORCHESTRATION.md) | Pipeline orchestrator, state schema, Microsoft AI patterns, self-correction | 1,397 |
-| [RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | Circuit breakers, fallback chains, timeout handling, idempotency | 247 |
-| [AGENT_PROMPTS.md](architecture/AGENT_PROMPTS.md) | System prompts for all 5 agents with JTBD and few-shot examples | 1,231 |
-| [IMPLEMENTATION_SCAFFOLD.md](architecture/IMPLEMENTATION_SCAFFOLD.md) | Next.js structure, BaseAgent class, agent implementations, API routes | 646 |
-| [OBSERVABILITY.md](architecture/OBSERVABILITY.md) | Tracing infrastructure, handlers, sanitization, North Star instrumentation | 2,256 |
-| [TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | Test categories, Vitest config, golden datasets, integration tests | 240 |
+| Document | Content |
+|----------|---------|
+| [PIPELINE_ORCHESTRATION.md](architecture/PIPELINE_ORCHESTRATION.md) | Pipeline orchestrator, state schema, Microsoft AI patterns, self-correction |
+| [RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | Circuit breakers, fallback chains, timeout handling, idempotency |
+| [AGENT_PROMPTS.md](architecture/AGENT_PROMPTS.md) | System prompts for all 5 agents with JTBD and few-shot examples |
+| [IMPLEMENTATION_SCAFFOLD.md](architecture/IMPLEMENTATION_SCAFFOLD.md) | Next.js structure, BaseAgent class, agent implementations, API routes |
+| [OBSERVABILITY.md](architecture/OBSERVABILITY.md) | Tracing infrastructure, handlers, sanitization, North Star instrumentation |
+| [TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | Test categories, Vitest config, golden datasets, integration tests |
 
 ---
 
