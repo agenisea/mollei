@@ -24,7 +24,7 @@ Mollei is an open source emotionally intelligent AI companion requiring a multi-
 | LLM Integration | Vercel AI SDK + Anthropic | Native streaming; multi-model support; excellent DX |
 | State Management | Centralized with scoped contexts | Agents share emotion/memory state; response generator gets full context |
 | Failure Strategy | Graceful degradation with fallbacks | Partial response > timeout; template fallback > model failure |
-| Tracing | Vendor-neutral with LangSmith backend | Pluggable handlers; PII sanitization; cost aggregation (Playwrite pattern) |
+| Tracing | Vendor-neutral with LangSmith backend | Pluggable handlers; PII sanitization; cost aggregation |
 
 ---
 
@@ -917,9 +917,9 @@ mollei/
 │   │   ├── index.ts                     # Exports
 │   │   ├── state.ts                     # MolleiStateAnnotation
 │   │   ├── builder.ts                   # buildMolleiGraph()
-│   │   ├── context.ts                   # PipelineContext (request-scoped) [v4.0]
+│   │   ├── context.ts                   # PipelineContext (request-scoped)
 │   │   ├── edges.ts                     # Conditional routing functions
-│   │   └── stages/                      # Pipeline stages [v4.0]
+│   │   └── stages/                      # Pipeline stages
 │   │       ├── input-validation.ts      # Input validation stage
 │   │       └── cache-check.ts           # Cache lookup with race handling
 │   │
@@ -932,20 +932,20 @@ mollei/
 │   │   ├── emotion-reasoner.ts          # Mollei's emotional response
 │   │   └── response-generator.ts        # Final response generation
 │   │
-│   ├── infrastructure/                  # Tracing & observability (Playwrite pattern)
+│   ├── infrastructure/                  # Tracing & observability
 │   │   ├── index.ts
 │   │   ├── trace.ts                     # Generic trace events, handler interface
-│   │   ├── trace-id.ts                  # Branded TraceId type [v4.0]
-│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing [v4.0]
+│   │   ├── trace-id.ts                  # Branded TraceId type
+│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing
 │   │   ├── trace-sanitizer.ts           # PII/secret redaction
 │   │   ├── langsmith-handler.ts         # LangSmith backend with sampling
 │   │   ├── cost-aggregator.ts           # Per-turn cost tracking
 │   │   ├── console-handler.ts           # Development console logging
 │   │   ├── tracing-bootstrap.ts         # Server startup initialization
-│   │   ├── token-budget.ts              # TokenBudgetTracker [v4.0]
-│   │   ├── llm-limiter.ts               # Per-request LLM concurrency [v4.0]
-│   │   ├── cache.ts                     # CacheStatus types [v4.0]
-│   │   └── cache-race.ts                # Race condition handler [v4.0]
+│   │   ├── token-budget.ts              # TokenBudgetTracker
+│   │   ├── llm-limiter.ts               # Per-request LLM concurrency
+│   │   ├── cache.ts                     # CacheStatus types
+│   │   └── cache-race.ts                # Race condition handler
 │   │
 │   ├── prompts/
 │   │   ├── index.ts                     # Prompt loader
@@ -1484,7 +1484,7 @@ export async function GET(
 
 ## 6. Observability & Tracing Infrastructure
 
-> **Design Pattern**: Vendor-neutral tracing with pluggable backends, adapted from production Playwrite architecture.
+> **Design Pattern**: Vendor-neutral tracing with pluggable backends for enterprise-grade observability.
 
 ### 6.1 Trace Architecture Overview
 
@@ -2502,7 +2502,7 @@ ENVIRONMENT=production  # development | staging | production
 | `mollei.model.tokens_used` | Counter | Cost tracking | trace:llm_call |
 | `mollei.trace.sample_rate` | Gauge | - | Configuration |
 
-### 6.12 Branded Trace IDs (Playwrite Pattern)
+### 6.12 Branded Trace IDs
 
 ```typescript
 // lib/infrastructure/trace-id.ts
@@ -2636,7 +2636,7 @@ export function calculateEmotionDrift(
 
 ---
 
-## 6A. Request-Scoped Isolation (Playwrite Pattern)
+## 6A. Request-Scoped Isolation
 
 > **Critical Pattern**: Prevent concurrent requests from interfering with each other's token budgets and rate limits.
 
@@ -2898,7 +2898,7 @@ export abstract class BaseAgent {
 
 ---
 
-## 6B. Cache Race Condition Handling (Playwrite Pattern)
+## 6B. Cache Race Condition Handling
 
 ### 6B.1 Cache Status Types
 
@@ -3036,7 +3036,7 @@ export class RaceConditionHandler<T> {
 
 ---
 
-## 6C. Input Validation Stage (Playwrite Pattern)
+## 6C. Input Validation Stage
 
 ```typescript
 // lib/graph/stages/input-validation.ts
@@ -3121,7 +3121,7 @@ export async function stageInputValidation(
 
 ---
 
-## 6D. Microsoft AI Agent Design Patterns (v4.1)
+## 6D. Microsoft AI Agent Design Patterns
 
 > **Reference**: [Azure Architecture Center - AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns)
 
@@ -3608,7 +3608,7 @@ export function prepareAgentContext(
 | Creating unnecessary complexity | 5 agents only; each has distinct purpose |
 | Adding agents without specialization | Each agent has unique model/budget/output |
 | Overlooking latency | Concurrent pattern reduces sequential hops |
-| Sharing mutable state | Request-scoped PipelineContext (v4.0) |
+| Sharing mutable state | Request-scoped PipelineContext |
 | Deterministic patterns for non-deterministic | Crisis routing uses conditional edges |
 | Context window explosion | Strategy-based context passing per agent |
 | Infinite loops | MAX_ITERATIONS in Maker-Checker |
@@ -4453,7 +4453,7 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 | 2024-12-24 | Haiku for safety_monitor | Sonnet | Speed critical (<500ms); simple classification task |
 | 2024-12-24 | Opus for response_generator | Sonnet | Quality > cost for core emotional response |
 | 2024-12-24 | PostgreSQL checkpointing | Redis, in-memory | Durability for long sessions; native LangGraph support |
-| 2024-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Playwrite pattern: pluggable backends, PII sanitization, cost aggregation |
+| 2024-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Pluggable backends, PII sanitization, cost aggregation |
 | 2024-12-24 | Trace sampling (50% prod) | 100% all environments | Balance observability with cost; full traces in dev |
 | 2024-12-24 | Strict sanitization mode | No sanitization | User messages contain PII; regulatory compliance |
 | 2024-12-24 | Drizzle ORM | Prisma, TypeORM | Lightweight; SQL-first; excellent TypeScript inference |
@@ -4463,33 +4463,32 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 
 ## Appendix C: Architecture Influences
 
-### Playwrite Project Patterns (Adopted)
+### Observability Patterns
 
-The observability infrastructure is adapted from the production **Playwrite** narrative simulation system (`/Projects/playwrite`), which demonstrates enterprise-grade patterns:
+The observability infrastructure implements enterprise-grade patterns for production AI systems:
 
-| Pattern | Playwrite Implementation | Mollei Adaptation |
-|---------|-------------------------|------------------|
-| **Trace Handler Interface** | `TraceHandler` ABC with `register_trace_handler()` | Identical pattern for vendor-neutral backends |
-| **LangSmith Backend** | Custom handler with sampling, run trees | Adapted with Mollei-specific event types |
-| **Trace Sanitizer** | Strict/permissive modes, PII hashing | Extended for emotional content redaction |
-| **Cost Aggregator** | Per-trace cost breakdown by call type | Per-turn breakdown by agent |
-| **Structured Monitoring** | `[monitoring:*]` JSON logs | Same pattern for crisis events, fallbacks |
-| **Bootstrap Initialization** | `tracing_bootstrap.py` at startup | Identical server startup hook |
+| Pattern | Implementation | Purpose |
+|---------|----------------|---------|
+| **Trace Handler Interface** | `TraceHandler` ABC with `register_trace_handler()` | Vendor-neutral backend support |
+| **LangSmith Backend** | Custom handler with sampling, run trees | Production tracing with Mollei-specific event types |
+| **Trace Sanitizer** | Strict/permissive modes, PII hashing | Emotional content redaction and compliance |
+| **Cost Aggregator** | Per-turn breakdown by agent | Cost tracking and optimization |
+| **Structured Monitoring** | `[monitoring:*]` JSON logs | Crisis events, fallbacks, system health |
+| **Bootstrap Initialization** | Server startup hook | Consistent tracing initialization |
 
-**Key Differences**:
-- Playwrite traces narrative generation (story, scene, character agents)
-- Mollei traces emotional conversation (mood, memory, safety, response agents)
-- Mollei adds crisis-specific trace events (`crisis_detected`, `crisis_severity`)
-- Mollei sanitizer redacts `user_message`, `callback_opportunities` in strict mode
+**Mollei-Specific Extensions**:
+- Traces emotional conversation flow (mood, memory, safety, response agents)
+- Crisis-specific trace events (`crisis_detected`, `crisis_severity`)
+- Sanitizer redacts `user_message`, `callback_opportunities` in strict mode
 
 ---
 
 **Document Status**: Ready for implementation (v4.2)
 **Revision History**:
 - v1.0 (2024-12-24): Initial blueprint (Python/FastAPI)
-- v2.0 (2024-12-24): Enhanced observability from Playwrite patterns
+- v2.0 (2024-12-24): Enhanced observability from referenced project patterns
 - v3.0 (2024-12-24): Full TypeScript conversion (Next.js, LangGraph.js, Vercel AI SDK)
-- v4.0 (2024-12-24): Production-hardening with Playwrite reference architecture patterns
+- v4.0 (2024-12-24): Production-hardening with referenced architecture patterns
 - v4.1 (2024-12-24): Microsoft AI Agent Design Patterns integration
 - v4.2 (2024-12-24): North Star instrumentation (WRU-ETI, BEL calculation, ETI evaluation)
 
@@ -4510,7 +4509,7 @@ The observability infrastructure is adapted from the production **Playwrite** na
 - Documented common pitfalls and Mollei mitigations
 - Updated pipeline diagram with new patterns
 
-**Patterns Adopted from Playwrite (v4.0)**:
+**Patterns Adopted from other projects (v4.0)**:
 | Pattern | Purpose | Source |
 |---------|---------|--------|
 | Branded TraceId | Type-safe trace correlation | `trace.ts:846` |
