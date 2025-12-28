@@ -45,7 +45,7 @@ A multi-agent system designed for emotional attunement, safety, and <3s response
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      ORCHESTRATOR                           │
-│                   (LangGraph StateGraph)                    │
+│               (Pipeline Orchestrator + Zod)                 │
 └─────────────────────────────────────────────────────────────┘
      │                    │                    │
      │ [PARALLEL]         │ [PARALLEL]         │ [PARALLEL]
@@ -88,7 +88,7 @@ A multi-agent system designed for emotional attunement, safety, and <3s response
 | Layer | Choice |
 |-------|--------|
 | Language | TypeScript |
-| Framework | Next.js + LangGraph.js |
+| Framework | Next.js |
 | LLM | Claude (Opus, Sonnet, Haiku) |
 | Database | PostgreSQL |
 | License | Hippocratic 3.0 |

@@ -2,7 +2,7 @@
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
 > **Last Updated**: 12-27-25 02:00PM PST
-> **Status**: Production-Ready Design — Open Source
+> **Status**: Open Source
 
 **Language**: TypeScript (Next.js)
 **Revision**: Optimized latency (<3s P95) with Haiku 4.5 + Sonnet 4.5
@@ -12,7 +12,9 @@
 
 ## Executive Summary
 
-Mollei is an open source emotionally intelligent AI companion requiring a multi-agent architecture to deliver consistent emotional support through persistent memory, stable personality, and measurable emotional outcomes. This blueprint defines a **Supervisor-Worker pattern** using **LangGraph.js** for orchestration, optimized for the **<3s P95 latency budget** with streaming (TTFT <1s).
+Mollei is an open source emotionally intelligent AI companion requiring a multi-agent architecture to deliver consistent emotional support through persistent memory, stable personality, and measurable emotional outcomes. This blueprint defines a **Supervisor-Worker pattern** using a **framework-agnostic pipeline orchestrator**, optimized for the **<3s P95 latency budget** with streaming (TTFT <1s).
+
+> **Framework Independence**: This architecture intentionally avoids LangGraph/LangChain runtime dependencies. Observability uses OpenTelemetry with LangSmith as an optional backend for evaluation and testing.
 
 ### Key Design Decisions
 
@@ -20,11 +22,12 @@ Mollei is an open source emotionally intelligent AI companion requiring a multi-
 |----------|--------|-----------|
 | **Language** | TypeScript | Type safety for agent contracts; unified stack with Next.js; V8 concurrency |
 | Orchestration Pattern | Supervisor-Worker | Explicit control over agent transitions; required for crisis safety |
-| Framework | LangGraph.js | Production-ready state machine; TypeScript-native; checkpointing |
+| Framework | **Custom Pipeline Orchestrator** | Framework-agnostic; no vendor lock-in |
+| State Schema | Zod | Runtime validation; TypeScript inference; no LangChain dependency |
 | LLM Integration | Vercel AI SDK + Anthropic | Native streaming; multi-model support; excellent DX |
 | State Management | Centralized with scoped contexts | Agents share emotion/memory state; response generator gets full context |
 | Failure Strategy | Graceful degradation with fallbacks | Partial response > timeout; template fallback > model failure |
-| Tracing | Vendor-neutral with LangSmith backend | Pluggable handlers; PII sanitization; cost aggregation |
+| Tracing | **OpenTelemetry-first** | Vendor-neutral; LangSmith as optional backend; pluggable handlers |
 
 ---
 
@@ -40,10 +43,11 @@ Mollei is an open source emotionally intelligent AI companion requiring a multi-
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           ORCHESTRATOR                                  │
-│                     (LangGraph StateGraph)                              │
+│                  (Custom Pipeline Orchestrator)                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  State: { session_id, user_message, user_emotion, mollei_emotion, │  │
 │  │           context_summary, crisis_detected, response, turn_count }│  │
+│  │  Schema: Zod validation | Pattern: Supervisor-Worker              │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
          │                    │                    │
@@ -196,144 +200,407 @@ mood_sensor    memory_agent      safety_monitor
           human_escalation  END
 ```
 
-### 2.2 LangGraph.js State Schema
+### 2.2 State Schema (Zod-Based, Framework-Agnostic)
+
+> **Pattern**: Uses Zod for runtime validation with full TypeScript inference. No LangChain/LangGraph dependency.
 
 ```typescript
-// lib/graph/state.ts
-import { Annotation } from "@langchain/langgraph";
+// lib/pipeline/mollei-state.ts
+import { z } from 'zod'
 
-// Emotion state from mood_sensor
-interface EmotionState {
-  primary: string;
-  secondary?: string;
-  intensity: number;      // 0-1
-  valence: number;        // -1 to 1
-  signals: string[];
-}
+/**
+ * Emotion state from mood_sensor
+ */
+export const EmotionStateSchema = z.object({
+  primary: z.string(),
+  secondary: z.string().optional(),
+  intensity: z.number().min(0).max(1),      // 0-1
+  valence: z.number().min(-1).max(1),       // -1 to 1
+  signals: z.array(z.string()),
+})
 
-// Mollei's emotional response from emotion_reasoner
-interface MolleiEmotionState {
-  primary: string;
-  energy: number;         // 0-1
-  approach: "validate" | "explore" | "support" | "gentle_redirect" | "crisis_support";
-  toneModifiers: string[];
-}
+/**
+ * Mollei's emotional response from emotion_reasoner
+ */
+export const MolleiEmotionSchema = z.object({
+  primary: z.string(),
+  energy: z.number().min(0).max(1),         // 0-1
+  approach: z.enum(['validate', 'explore', 'support', 'gentle_redirect', 'crisis_support']),
+  toneModifiers: z.array(z.string()),
+})
 
-// Agent latency tracking
-interface LatencyMap {
-  [agentId: string]: number;
-}
-
-// Main state annotation for LangGraph.js
-export const MolleiStateAnnotation = Annotation.Root({
+/**
+ * Complete pipeline state (Zod schema with TypeScript inference)
+ * Passed between pipeline stages, accumulated through execution
+ */
+export const MolleiStateSchema = z.object({
   // Input
-  sessionId: Annotation<string>,
-  userId: Annotation<string>,
-  userMessage: Annotation<string>,
-  turnNumber: Annotation<number>,
+  sessionId: z.string(),
+  userId: z.string(),
+  userMessage: z.string(),
+  turnNumber: z.number(),
 
-  // Agent outputs
-  userEmotion: Annotation<EmotionState | null>,
-  contextSummary: Annotation<string>,
-  callbackOpportunities: Annotation<string[]>,
-  recurringThemes: Annotation<string[]>,
-  relationshipStage: Annotation<"new" | "building" | "established">,
+  // Agent outputs (accumulated through pipeline)
+  userEmotion: EmotionStateSchema.nullable(),
+  contextSummary: z.string(),
+  callbackOpportunities: z.array(z.string()),
+  recurringThemes: z.array(z.string()),
+  relationshipStage: z.enum(['new', 'building', 'established']),
 
-  crisisDetected: Annotation<boolean>,
-  crisisSeverity: Annotation<number>,       // 1-5
-  crisisSignalType: Annotation<string>,
+  crisisDetected: z.boolean(),
+  crisisSeverity: z.number().min(1).max(5),
+  crisisSignalType: z.string(),
+  crisisConfidence: z.number().min(0).max(1),         // Safety quality gate
+  ambiguousSafetySignals: z.array(z.string()),        // Unclear crisis indicators
 
-  molleiEmotion: Annotation<MolleiEmotionState | null>,
+  molleiEmotion: MolleiEmotionSchema.nullable(),
 
   // Final output
-  response: Annotation<string>,
-  resourcesAppended: Annotation<boolean>,
+  response: z.string(),
+  resourcesAppended: z.boolean(),
+
+  // Self-correction state
+  safetyAttempts: z.number(),                          // Retry counter for safety recheck
+  responseAttempts: z.number(),                        // Retry counter for response generation
+  retryFeedback: z.object({                            // Unified feedback for retry attempts
+    empathyGaps: z.array(z.string()).optional(),       // "Response was too solution-focused"
+    missedCues: z.array(z.string()).optional(),        // "Didn't acknowledge grief signal"
+    toneIssues: z.array(z.string()).optional(),        // "Energy too high for exhausted user"
+    groundednessIssues: z.array(z.string()).optional(),// "Made assumption not in context"
+  }).nullable(),
+  emotionConfidence: z.number().min(0).max(1),         // Input quality for adaptive threshold
+  inputAmbiguous: z.boolean(),                         // Flag for unclear emotional signals
 
   // Observability
-  traceId: Annotation<string>,
-  latencyMs: Annotation<LatencyMap>,
-  agentErrors: Annotation<string[]>,
-  modelUsed: Annotation<string>,
-});
+  latencyMs: z.record(z.number()),
+  agentErrors: z.array(z.string()),
+  modelUsed: z.string(),
+})
 
-export type MolleiState = typeof MolleiStateAnnotation.State;
+// TypeScript types inferred from Zod schemas
+export type MolleiState = z.infer<typeof MolleiStateSchema>
+export type EmotionState = z.infer<typeof EmotionStateSchema>
+export type MolleiEmotion = z.infer<typeof MolleiEmotionSchema>
+
+/**
+ * Create initial state for a new conversation turn
+ */
+export function createInitialState(
+  sessionId: string,
+  userId: string,
+  userMessage: string,
+  turnNumber: number
+): MolleiState {
+  return {
+    sessionId,
+    userId,
+    userMessage,
+    turnNumber,
+    userEmotion: null,
+    contextSummary: '',
+    callbackOpportunities: [],
+    recurringThemes: [],
+    relationshipStage: 'new',
+    crisisDetected: false,
+    crisisSeverity: 1,
+    crisisSignalType: 'none',
+    crisisConfidence: 0,
+    ambiguousSafetySignals: [],
+    molleiEmotion: null,
+    response: '',
+    resourcesAppended: false,
+    // Self-correction state (reset each turn)
+    safetyAttempts: 0,
+    responseAttempts: 0,
+    retryFeedback: null,
+    emotionConfidence: 0,
+    inputAmbiguous: false,
+    latencyMs: {},
+    agentErrors: [],
+    modelUsed: '',
+  }
+}
 ```
 
-### 2.3 Graph Definition
+### 2.3 Pipeline Orchestrator
+
+> **Pattern**: Framework-agnostic orchestration supporting sequential, parallel, and conditional execution without LangGraph dependency.
+
+#### 2.3.1 Core Pipeline Types
 
 ```typescript
-// lib/graph/builder.ts
-import { StateGraph, END, START } from "@langchain/langgraph";
-import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
-import { MolleiStateAnnotation, MolleiState } from "./state";
-import {
-  moodSensorNode,
-  memoryAgentNode,
-  safetyMonitorNode,
-  emotionReasonerNode,
-  responseGeneratorNode,
-  crisisResponseNode,
-  memoryUpdateNode,
-} from "../agents";
+// lib/pipeline/pipeline-types.ts
+import type { TraceId } from '@/lib/infrastructure/trace'
 
-// Conditional routing based on crisis detection
-function routeByCrisis(state: MolleiState): "crisis" | "normal" {
-  if (state.crisisDetected && state.crisisSeverity >= 4) {
-    return "crisis";
-  }
-  return "normal";
+/**
+ * Generic pipeline module interface
+ * Each agent transforms input to output with access to shared context.
+ */
+export interface PipelineModule<TInput = unknown, TOutput = unknown> {
+  execute(input: TInput, context: PipelineContext): Promise<TOutput>
 }
 
-export async function buildMolleiGraph() {
-  const workflow = new StateGraph(MolleiStateAnnotation);
+/**
+ * Request-scoped pipeline context
+ */
+export interface PipelineContext {
+  traceId: TraceId
+  sessionId: string
+  userId: string
+  abortSignal?: AbortSignal
+  onProgress?: (phase: string, data?: unknown) => void
 
-  // Add nodes
-  workflow.addNode("mood_sensor", moodSensorNode);
-  workflow.addNode("memory_agent", memoryAgentNode);
-  workflow.addNode("safety_monitor", safetyMonitorNode);
-  workflow.addNode("emotion_reasoner", emotionReasonerNode);
-  workflow.addNode("response_generator", responseGeneratorNode);
-  workflow.addNode("crisis_response", crisisResponseNode);
-  workflow.addNode("memory_update", memoryUpdateNode);
-
-  // Parallel fan-out from START
-  workflow.addEdge(START, "mood_sensor");
-  workflow.addEdge(START, "memory_agent");
-  workflow.addEdge(START, "safety_monitor");
-
-  // Synchronization: all three must complete before emotion_reasoner
-  workflow.addEdge("mood_sensor", "emotion_reasoner");
-  workflow.addEdge("memory_agent", "emotion_reasoner");
-  workflow.addEdge("safety_monitor", "emotion_reasoner");
-
-  // Conditional routing based on crisis detection
-  workflow.addConditionalEdges("emotion_reasoner", routeByCrisis, {
-    crisis: "crisis_response",
-    normal: "response_generator",
-  });
-
-  // Both response paths lead to memory update
-  workflow.addEdge("response_generator", "memory_update");
-  workflow.addEdge("crisis_response", "memory_update");
-
-  // End
-  workflow.addEdge("memory_update", END);
-
-  // Compile with checkpointing
-  const checkpointer = PostgresSaver.fromConnString(process.env.DATABASE_URL!);
-  await checkpointer.setup();
-
-  return workflow.compile({ checkpointer });
+  // Mollei-specific: per-request token budget tracking
+  tokenBudget?: TokenBudgetTracker
 }
 
-// Singleton graph instance
-let molleiGraph: Awaited<ReturnType<typeof buildMolleiGraph>> | null = null;
-
-export async function getGraph() {
-  if (!molleiGraph) {
-    molleiGraph = await buildMolleiGraph();
+/**
+ * Pipeline execution result with metadata
+ */
+export interface PipelineResult<TOutput = unknown> {
+  output: TOutput
+  meta: {
+    traceId: TraceId
+    durationMs: number
+    stagesCompleted: string[]
+    fromCache?: boolean
   }
-  return molleiGraph;
+}
+```
+
+#### 2.3.2 Pipeline Orchestrator Functions
+
+```typescript
+// lib/pipeline/pipeline-orchestrator.ts
+import type { PipelineModule, PipelineContext, PipelineResult } from './pipeline-types'
+
+/**
+ * Execute a sequential pipeline of modules
+ * Each module receives the output of the previous module as input.
+ */
+export async function runSequentialPipeline<TInput, TOutput>(
+  modules: PipelineModule[],
+  initialInput: TInput,
+  context: PipelineContext
+): Promise<PipelineResult<TOutput>> {
+  const startTime = Date.now()
+  const stagesCompleted: string[] = []
+  let currentInput: unknown = initialInput
+
+  for (const [index, module] of modules.entries()) {
+    if (context.abortSignal?.aborted) {
+      throw new Error('Pipeline cancelled by abort signal')
+    }
+
+    const stageName = module.constructor.name || `Stage${index + 1}`
+    const stageResult = await module.execute(currentInput, context)
+    currentInput = stageResult
+    stagesCompleted.push(stageName)
+  }
+
+  return {
+    output: currentInput as TOutput,
+    meta: {
+      traceId: context.traceId,
+      durationMs: Date.now() - startTime,
+      stagesCompleted,
+    },
+  }
+}
+
+/**
+ * Execute multiple modules in parallel with synchronization barrier
+ * All modules receive the same input and execute concurrently.
+ * Returns results in same order as input modules.
+ */
+export async function runParallelModules<TInput>(
+  modules: PipelineModule<TInput>[],
+  input: TInput,
+  context: PipelineContext,
+  timeoutMs: number = 500 // Mollei: 0.5s barrier for parallel phase
+): Promise<unknown[]> {
+  const promises = modules.map(async (module) => {
+    return Promise.race([
+      module.execute(input, context),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Parallel stage timeout')), timeoutMs)
+      ),
+    ])
+  })
+
+  // Use allSettled for graceful degradation
+  return await Promise.allSettled(promises).then((results) =>
+    results.map((r) => (r.status === 'fulfilled' ? r.value : null))
+  )
+}
+
+/**
+ * Execute modules with conditional routing
+ * Runs condition functions to determine which module to execute.
+ */
+export async function runConditionalPipeline<TInput, TOutput>(
+  input: TInput,
+  context: PipelineContext,
+  routes: Array<{
+    condition: (input: TInput, context: PipelineContext) => boolean | Promise<boolean>
+    module: PipelineModule<TInput, TOutput>
+  }>
+): Promise<TOutput> {
+  for (const route of routes) {
+    if (await route.condition(input, context)) {
+      return await route.module.execute(input, context)
+    }
+  }
+  throw new Error('No matching route found in conditional pipeline')
+}
+```
+
+#### 2.3.3 Mollei Pipeline Graph
+
+```typescript
+// lib/pipeline/mollei-graph.ts
+import { runSequentialPipeline, runParallelModules, runConditionalPipeline } from './pipeline-orchestrator'
+import type { PipelineContext, PipelineResult } from './pipeline-types'
+import type { MolleiState } from './mollei-state'
+import { createInitialState } from './mollei-state'
+import { createTraceId, traceRunStart, traceRunEnd, traceStage } from '@/lib/infrastructure/trace'
+
+// Agent modules (implement PipelineModule interface)
+import { MoodSensorModule } from '@/lib/agents/mood-sensor'
+import { MemoryAgentModule } from '@/lib/agents/memory-agent'
+import { SafetyMonitorModule } from '@/lib/agents/safety-monitor'
+import { EmotionReasonerModule } from '@/lib/agents/emotion-reasoner'
+import { ResponseGeneratorModule } from '@/lib/agents/response-generator'
+import { CrisisResponseModule } from '@/lib/agents/crisis-response'
+import { MemoryUpdateModule } from '@/lib/agents/memory-update'
+
+/**
+ * Execute the complete Mollei conversation pipeline
+ *
+ * Pattern: Hybrid Sequential-Parallel (same topology as original design)
+ *
+ * Phase 1: Parallel analysis (mood_sensor, memory_agent, safety_monitor) - 0.5s barrier
+ * Phase 2: Sequential reasoning (emotion_reasoner) - 0.5s
+ * Phase 3: Conditional response (crisis_response OR response_generator) - 1.5s
+ * Phase 4: Memory update (async, non-blocking)
+ */
+export async function runMolleiPipeline(
+  sessionId: string,
+  userId: string,
+  userMessage: string,
+  turnNumber: number,
+  abortSignal?: AbortSignal
+): Promise<PipelineResult<MolleiState>> {
+  const traceId = createTraceId('ml_turn')
+  const startTime = Date.now()
+  const stagesCompleted: string[] = []
+
+  const context: PipelineContext = {
+    traceId,
+    sessionId,
+    userId,
+    abortSignal,
+  }
+
+  let state = createInitialState(sessionId, userId, userMessage, turnNumber)
+
+  traceRunStart(traceId, { sessionId, turnNumber })
+
+  try {
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 1: PARALLEL ANALYSIS (0.5s synchronization barrier)
+    // ═══════════════════════════════════════════════════════════════════════
+    traceStage(traceId, 'parallel_analysis', 'start')
+
+    const [moodResult, memoryResult, safetyResult] = await runParallelModules(
+      [
+        new MoodSensorModule(),
+        new MemoryAgentModule(),
+        new SafetyMonitorModule(),
+      ],
+      state,
+      context,
+      500 // 0.5s synchronization barrier
+    )
+
+    // Merge parallel results into state (graceful degradation if null)
+    if (moodResult) state = { ...state, ...moodResult }
+    if (memoryResult) state = { ...state, ...memoryResult }
+    if (safetyResult) state = { ...state, ...safetyResult }
+
+    stagesCompleted.push('mood_sensor', 'memory_agent', 'safety_monitor')
+    traceStage(traceId, 'parallel_analysis', 'complete', Date.now() - startTime)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 1B: SAFETY QUALITY GATE (self-correction loop)
+    // ═══════════════════════════════════════════════════════════════════════
+    // Handle uncertainty in crisis detection - recheck with more context if needed
+    while (shouldRecheckSafety(state)) {
+      traceStage(traceId, 'recheck_safety', 'start')
+      const recheckResult = await recheckSafety(state, context)
+      state = { ...state, ...recheckResult }
+      stagesCompleted.push('recheck_safety')
+      traceStage(traceId, 'recheck_safety', 'complete')
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 2: SEQUENTIAL REASONING
+    // ═══════════════════════════════════════════════════════════════════════
+    traceStage(traceId, 'emotion_reasoner', 'start')
+
+    const emotionResult = await new EmotionReasonerModule().execute(state, context)
+    state = { ...state, ...emotionResult }
+    stagesCompleted.push('emotion_reasoner')
+
+    traceStage(traceId, 'emotion_reasoner', 'complete')
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 3: CONDITIONAL RESPONSE (quality-gated crisis routing)
+    // ═══════════════════════════════════════════════════════════════════════
+    // Use confidence-aware routing, not just binary crisis detection
+    const routeDecision = routeAfterSafetyMonitor(state)
+    const isCrisis = routeDecision === 'crisis_response'
+
+    traceStage(traceId, isCrisis ? 'crisis_response' : 'response_generator', 'start')
+
+    if (isCrisis) {
+      const crisisResult = await new CrisisResponseModule().execute(state, context)
+      state = { ...state, ...crisisResult }
+      stagesCompleted.push('crisis_response')
+    } else {
+      // Use self-correcting response generation with unified feedback
+      state = await generateResponseWithRetry(state, context)
+      stagesCompleted.push('response_generator')
+      if (state.responseAttempts > 0) {
+        stagesCompleted.push(`response_retry_${state.responseAttempts}`)
+      }
+    }
+
+    traceStage(traceId, isCrisis ? 'crisis_response' : 'response_generator', 'complete')
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 4: MEMORY UPDATE (async, non-blocking for response delivery)
+    // ═══════════════════════════════════════════════════════════════════════
+    // Fire-and-forget: don't block response delivery
+    new MemoryUpdateModule().execute(state, context).catch((err) => {
+      console.error('[mollei] Memory update failed:', err)
+    })
+
+    const durationMs = Date.now() - startTime
+    traceRunEnd(traceId, { durationMs, stagesCompleted, success: true })
+
+    return {
+      output: state,
+      meta: {
+        traceId,
+        durationMs,
+        stagesCompleted,
+      },
+    }
+  } catch (error) {
+    traceRunEnd(traceId, { success: false, error: String(error) })
+    throw error
+  }
 }
 ```
 
@@ -346,6 +613,527 @@ export async function getGraph() {
 | Phase 3 (Sequential) | response_generator | 1.5s | Sonnet 4.5 with streaming (TTFT <1s) |
 | Phase 4 (Sequential) | memory_update | 0.3s | Async, non-blocking for response |
 | **Total** | | **<3s P95** | TTFT <1s with streaming |
+
+### 2.5 Self-Correction Patterns
+
+> **Pattern**: Quality-driven conditional routing with self-correction loops. Prevents confidently-wrong outputs from low-confidence analysis.
+
+#### 2.5.1 Quality-Gated Safety Routing
+
+Crisis detection is safety-critical. False negatives (missing a real crisis) are unacceptable. This routing function handles uncertainty explicitly.
+
+```typescript
+// lib/pipeline/routing.ts
+
+/**
+ * Route after safety_monitor based on confidence and severity
+ *
+ * Key insight: Binary crisis/non-crisis ignores uncertainty.
+ * Low-confidence elevated severity should trigger recheck with more context.
+ */
+export function routeAfterSafetyMonitor(state: MolleiState): string {
+  const { crisisDetected, crisisConfidence, crisisSeverity, safetyAttempts } = state
+
+  // High confidence crisis → immediate crisis response
+  if (crisisDetected && crisisConfidence >= 0.8) {
+    return 'crisis_response'
+  }
+
+  // Low confidence but elevated severity → recheck with conversation history
+  if (crisisSeverity >= 3 && crisisConfidence < 0.7 && safetyAttempts < 2) {
+    return 'recheck_safety'
+  }
+
+  // Ambiguous signals that need more context
+  if (state.ambiguousSafetySignals.length > 0 && safetyAttempts < 1) {
+    return 'recheck_safety'
+  }
+
+  // Clear non-crisis or max attempts reached
+  return 'emotion_reasoner'
+}
+
+/**
+ * Recheck safety with expanded context
+ * Called when initial analysis had low confidence but concerning signals
+ */
+export async function recheckSafety(
+  state: MolleiState,
+  context: PipelineContext
+): Promise<Partial<MolleiState>> {
+  // Include conversation history for better context
+  const expandedPrompt = buildSafetyPromptWithHistory(
+    state.userMessage,
+    state.contextSummary,
+    state.ambiguousSafetySignals
+  )
+
+  const result = await new SafetyMonitorModule().executeWithContext(
+    expandedPrompt,
+    context
+  )
+
+  return {
+    ...result,
+    safetyAttempts: state.safetyAttempts + 1,
+  }
+}
+```
+
+#### 2.5.2 Unified Retry Feedback for Response Generation
+
+When a response needs regeneration, provide structured feedback about *why* rather than generic "try again".
+
+```typescript
+// lib/pipeline/response-evaluator.ts
+
+interface RetryFeedback {
+  empathyGaps?: string[]       // "User expressed grief, response was too solution-focused"
+  missedCues?: string[]        // "Didn't acknowledge 'I feel so alone'"
+  toneIssues?: string[]        // "Energy too high for user's exhausted state"
+  groundednessIssues?: string[] // "Made assumption not in context"
+}
+
+/**
+ * Evaluate response quality and generate structured feedback
+ * Returns null if response is acceptable, feedback object if retry needed
+ */
+export async function evaluateResponseQuality(
+  state: MolleiState,
+  context: PipelineContext
+): Promise<RetryFeedback | null> {
+  const { userEmotion, molleiEmotion, response, emotionConfidence, inputAmbiguous } = state
+
+  // Adaptive threshold: lower bar when input was unclear
+  const qualityThreshold = (emotionConfidence < 0.6 || inputAmbiguous)
+    ? 0.6   // Lower bar - input was unclear, do our best
+    : 0.75  // Normal bar - input was clear, expect quality
+
+  const evaluation = await evaluateWithLLM({
+    userEmotion,
+    molleiEmotion,
+    response,
+    userMessage: state.userMessage,
+  })
+
+  if (evaluation.qualityScore >= qualityThreshold) {
+    return null // Response is good enough
+  }
+
+  // Build specific feedback for retry
+  const feedback: RetryFeedback = {}
+
+  if (evaluation.empathyScore < 0.7) {
+    feedback.empathyGaps = evaluation.empathyIssues
+  }
+  if (evaluation.missedEmotionalCues.length > 0) {
+    feedback.missedCues = evaluation.missedEmotionalCues
+  }
+  if (evaluation.toneAlignment < 0.7) {
+    feedback.toneIssues = evaluation.toneProblems
+  }
+  if (evaluation.groundedness < 0.8) {
+    feedback.groundednessIssues = evaluation.unsupportedClaims
+  }
+
+  return feedback
+}
+
+/**
+ * Build response prompt with retry feedback
+ * Gives the model clear, actionable guidance vs. generic "try again"
+ */
+export function buildPromptWithFeedback(
+  basePrompt: string,
+  feedback: RetryFeedback | null
+): string {
+  if (!feedback) return basePrompt
+
+  const feedbackLines: string[] = ['FEEDBACK ON PREVIOUS ATTEMPT:']
+
+  if (feedback.empathyGaps?.length) {
+    feedbackLines.push(`- Empathy gaps: ${feedback.empathyGaps.join('; ')}`)
+  }
+  if (feedback.missedCues?.length) {
+    feedbackLines.push(`- Missed emotional cues: ${feedback.missedCues.join('; ')}`)
+  }
+  if (feedback.toneIssues?.length) {
+    feedbackLines.push(`- Tone issues: ${feedback.toneIssues.join('; ')}`)
+  }
+  if (feedback.groundednessIssues?.length) {
+    feedbackLines.push(`- Unsupported statements: ${feedback.groundednessIssues.join('; ')}`)
+  }
+
+  return `${basePrompt}\n\n${feedbackLines.join('\n')}`
+}
+```
+
+#### 2.5.3 Response Generation with Self-Correction Loop
+
+```typescript
+// lib/pipeline/response-generator-with-retry.ts
+
+const MAX_RESPONSE_ATTEMPTS = 2
+
+export async function generateResponseWithRetry(
+  state: MolleiState,
+  context: PipelineContext
+): Promise<MolleiState> {
+  let currentState = state
+
+  while (currentState.responseAttempts < MAX_RESPONSE_ATTEMPTS) {
+    // Generate response
+    const response = await new ResponseGeneratorModule().execute(
+      currentState,
+      context
+    )
+    currentState = { ...currentState, ...response }
+
+    // Evaluate quality
+    const feedback = await evaluateResponseQuality(currentState, context)
+
+    if (!feedback) {
+      // Response is good enough
+      return currentState
+    }
+
+    // Retry with feedback
+    currentState = {
+      ...currentState,
+      retryFeedback: feedback,
+      responseAttempts: currentState.responseAttempts + 1,
+    }
+
+    context.onProgress?.('response_retry', {
+      attempt: currentState.responseAttempts,
+      feedback,
+    })
+  }
+
+  // Max attempts reached, return best effort
+  return currentState
+}
+```
+
+#### 2.5.4 Adaptive Quality Thresholds
+
+```typescript
+// lib/pipeline/quality-thresholds.ts
+
+/**
+ * Adjust quality expectations based on input quality
+ *
+ * Key insight: Expecting perfect responses from ambiguous input causes
+ * infinite retry loops. Lower the bar when input is unclear.
+ */
+export function getResponseQualityThreshold(state: MolleiState): number {
+  const { emotionConfidence, inputAmbiguous, userEmotion } = state
+
+  // Base threshold
+  let threshold = 0.75
+
+  // Lower threshold for unclear emotional input
+  if (emotionConfidence < 0.6) {
+    threshold -= 0.15
+  }
+
+  // Lower threshold for explicitly ambiguous signals
+  if (inputAmbiguous) {
+    threshold -= 0.10
+  }
+
+  // Lower threshold for mixed emotions (harder to respond to)
+  if (userEmotion?.secondary && userEmotion.intensity > 0.5) {
+    threshold -= 0.05
+  }
+
+  // Floor at 0.5 - always expect some quality
+  return Math.max(threshold, 0.5)
+}
+
+/**
+ * Determine if safety recheck is warranted
+ */
+export function shouldRecheckSafety(state: MolleiState): boolean {
+  const { crisisConfidence, crisisSeverity, safetyAttempts, ambiguousSafetySignals } = state
+
+  // Never recheck more than twice
+  if (safetyAttempts >= 2) return false
+
+  // Recheck if low confidence + elevated severity
+  if (crisisSeverity >= 3 && crisisConfidence < 0.7) return true
+
+  // Recheck if ambiguous signals present
+  if (ambiguousSafetySignals.length > 0) return true
+
+  return false
+}
+```
+
+### 2.6 Performance Optimization Patterns
+
+#### 2.6.1 Pluggable Backend Protocol
+
+Define backend contracts as TypeScript interfaces, implement multiple providers. Switch between local (dev) and cloud (production) without code changes.
+
+```typescript
+// lib/backends/emotion-backend.ts
+
+/**
+ * Pluggable Emotion Detection Backend
+ *
+ * Enables:
+ * - Local model for development (faster, no API costs)
+ * - Claude for production (higher quality)
+ * - Easy A/B testing of different emotion models
+ */
+export interface EmotionBackend {
+  analyze(text: string): Promise<EmotionResult>
+  readonly name: string
+}
+
+export interface EmotionResult {
+  primary: string
+  secondary?: string
+  intensity: number      // 0-1
+  valence: number        // -1 to 1
+  confidence: number     // 0-1
+  signals: string[]
+}
+
+/**
+ * Claude-based emotion detection (production)
+ * Higher quality, ~500ms latency, API costs
+ */
+export class ClaudeEmotionBackend implements EmotionBackend {
+  readonly name = 'claude'
+
+  async analyze(text: string): Promise<EmotionResult> {
+    const response = await generateObject({
+      model: anthropic('claude-3-5-haiku-latest'),
+      schema: EmotionResultSchema,
+      prompt: buildEmotionPrompt(text),
+    })
+    return { ...response.object, confidence: 0.9 }
+  }
+}
+
+/**
+ * Local sentiment model (development)
+ * Lower quality, <50ms latency, no API costs
+ */
+export class LocalEmotionBackend implements EmotionBackend {
+  readonly name = 'local'
+  private model: SentimentModel
+
+  constructor() {
+    // Use a lightweight sentiment model (e.g., transformers.js, onnx)
+    this.model = loadLocalSentimentModel()
+  }
+
+  async analyze(text: string): Promise<EmotionResult> {
+    const sentiment = await this.model.predict(text)
+
+    return {
+      primary: sentiment.label,          // positive/negative/neutral
+      intensity: Math.abs(sentiment.score),
+      valence: sentiment.score,          // -1 to 1
+      confidence: sentiment.confidence,
+      signals: [],
+    }
+  }
+}
+
+/**
+ * Factory function - select backend via environment variable
+ */
+export function createEmotionBackend(): EmotionBackend {
+  const backend = process.env.EMOTION_BACKEND ?? 'claude'
+
+  switch (backend) {
+    case 'local':
+      return new LocalEmotionBackend()
+    case 'claude':
+    default:
+      return new ClaudeEmotionBackend()
+  }
+}
+```
+
+#### 2.6.2 Two-Stage Emotion Analysis
+
+Skip expensive LLM calls for clear-cut emotional messages. Fast local model handles 70%+ of cases; LLM reserved for ambiguous or high-severity situations.
+
+```typescript
+// lib/pipeline/two-stage-emotion.ts
+
+interface TwoStageConfig {
+  confidenceThreshold: number  // Below this, escalate to LLM
+  severityThreshold: number    // Above this, always use LLM
+}
+
+const DEFAULT_CONFIG: TwoStageConfig = {
+  confidenceThreshold: 0.8,
+  severityThreshold: 3,
+}
+
+/**
+ * Two-Stage Emotion Analysis
+ *
+ * Stage 1: Fast local sentiment (< 50ms)
+ * Stage 2: Deep LLM analysis (only if needed)
+ *
+ * Cost impact: Skip 70%+ of LLM emotion calls for clear-cut messages
+ */
+export async function analyzeEmotionTwoStage(
+  text: string,
+  context: PipelineContext,
+  config: TwoStageConfig = DEFAULT_CONFIG
+): Promise<EmotionResult & { stage: 'local' | 'llm' }> {
+  const localBackend = new LocalEmotionBackend()
+  const llmBackend = new ClaudeEmotionBackend()
+
+  // Stage 1: Fast local analysis
+  const quickResult = await localBackend.analyze(text)
+
+  context.onProgress?.('emotion_stage1', {
+    backend: 'local',
+    confidence: quickResult.confidence,
+    latencyMs: performance.now(),
+  })
+
+  // Decide if LLM escalation needed
+  const needsLLM =
+    quickResult.confidence < config.confidenceThreshold ||
+    quickResult.intensity > config.severityThreshold / 5 || // Normalize to 0-1
+    containsCrisisKeywords(text)
+
+  if (!needsLLM) {
+    // Local result is sufficient
+    return { ...quickResult, stage: 'local' }
+  }
+
+  // Stage 2: Deep LLM analysis
+  const deepResult = await llmBackend.analyze(text)
+
+  context.onProgress?.('emotion_stage2', {
+    backend: 'llm',
+    reason: quickResult.confidence < config.confidenceThreshold
+      ? 'low_confidence'
+      : 'high_severity',
+  })
+
+  return { ...deepResult, stage: 'llm' }
+}
+
+/**
+ * Quick keyword check for crisis signals
+ * Ensures LLM always handles potentially dangerous content
+ */
+function containsCrisisKeywords(text: string): boolean {
+  const crisisPatterns = [
+    /\b(suicide|suicidal|kill myself|end it all)\b/i,
+    /\b(self.?harm|cutting|hurt myself)\b/i,
+    /\b(don'?t want to (live|be here|exist))\b/i,
+    /\b(no reason to live|better off dead)\b/i,
+  ]
+  return crisisPatterns.some(pattern => pattern.test(text))
+}
+```
+
+#### 2.6.3 Mood Sensor with Two-Stage Integration
+
+Update the mood_sensor agent to use two-stage analysis:
+
+```typescript
+// lib/agents/mood-sensor.ts
+
+export class MoodSensorModule implements PipelineModule<MolleiState, Partial<MolleiState>> {
+  private config: TwoStageConfig
+
+  constructor(config?: Partial<TwoStageConfig>) {
+    this.config = { ...DEFAULT_CONFIG, ...config }
+  }
+
+  async execute(
+    state: MolleiState,
+    context: PipelineContext
+  ): Promise<Partial<MolleiState>> {
+    const start = performance.now()
+
+    try {
+      const result = await analyzeEmotionTwoStage(
+        state.userMessage,
+        context,
+        this.config
+      )
+
+      return {
+        userEmotion: {
+          primary: result.primary,
+          secondary: result.secondary,
+          intensity: result.intensity,
+          valence: result.valence,
+          signals: result.signals,
+        },
+        emotionConfidence: result.confidence,
+        inputAmbiguous: result.confidence < 0.6,
+        latencyMs: {
+          ...state.latencyMs,
+          mood_sensor: Math.round(performance.now() - start),
+        },
+      }
+    } catch (error) {
+      // Fallback: neutral emotion with low confidence
+      return {
+        userEmotion: {
+          primary: 'neutral',
+          intensity: 0.3,
+          valence: 0,
+          signals: [],
+        },
+        emotionConfidence: 0.3,
+        inputAmbiguous: true,
+        agentErrors: [...state.agentErrors, `mood_sensor: ${error}`],
+      }
+    }
+  }
+}
+```
+
+#### 2.6.4 Environment Configuration
+
+```bash
+# .env.local.example
+
+# Emotion Backend Selection
+# Options: claude | local
+# Default: claude (production quality)
+EMOTION_BACKEND=claude
+
+# Two-Stage Analysis Thresholds
+# Lower = more LLM calls, higher quality
+# Higher = fewer LLM calls, faster/cheaper
+EMOTION_CONFIDENCE_THRESHOLD=0.8
+EMOTION_SEVERITY_THRESHOLD=3
+
+# Local Model Configuration (when EMOTION_BACKEND=local)
+# LOCAL_MODEL_PATH=/path/to/sentiment-model.onnx
+```
+
+#### 2.6.5 Performance Impact
+
+| Scenario | Without Two-Stage | With Two-Stage | Savings |
+|----------|-------------------|----------------|---------|
+| Clear positive ("I'm so happy today!") | ~500ms LLM | ~50ms local | 90% |
+| Clear negative ("I'm frustrated") | ~500ms LLM | ~50ms local | 90% |
+| Ambiguous ("I don't know how I feel") | ~500ms LLM | ~550ms (both) | -10% |
+| Crisis signal ("I want to disappear") | ~500ms LLM | ~550ms (both) | Safety first |
+| **Weighted Average** (70% clear, 20% ambiguous, 10% crisis) | 500ms | ~195ms | **61%** |
+
+**Cost Projection** (assuming $0.25/1K tokens for Haiku):
+- 10,000 daily conversations: ~$2.50/day → ~$0.75/day (70% savings)
+- LLM reserved for cases that need it
 
 ---
 
@@ -438,7 +1226,7 @@ export class CircuitBreaker {
 // lib/resilience/fallbacks.ts
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { logFallback } from "../server/monitoring";
 
 const TEMPLATE_RESPONSES = [
@@ -495,7 +1283,7 @@ export async function responseGeneratorWithFallback(
 
 ```typescript
 // lib/resilience/timeouts.ts
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { logTimeout } from "../server/monitoring";
 
 type AgentFunction<T> = (state: MolleiState) => Promise<T>;
@@ -539,7 +1327,7 @@ export const moodSensorWithTimeout = withTimeout(1000, neutralEmotionFallback);
 ```typescript
 // lib/resilience/idempotency.ts
 import { Redis } from "ioredis";
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { updateSessionContext, insertConversationTurn } from "../db/repositories";
 import { logError } from "../server/monitoring";
 
@@ -913,15 +1701,25 @@ mollei/
 │       └── page.tsx                     # User settings
 │
 ├── lib/                                 # Core business logic
-│   ├── graph/
+│   ├── pipeline/                        # Framework-agnostic orchestration
 │   │   ├── index.ts                     # Exports
-│   │   ├── state.ts                     # MolleiStateAnnotation
-│   │   ├── builder.ts                   # buildMolleiGraph()
-│   │   ├── context.ts                   # PipelineContext (request-scoped)
-│   │   ├── edges.ts                     # Conditional routing functions
+│   │   ├── state.ts                     # MolleiStateSchema (Zod-based)
+│   │   ├── orchestrator.ts              # runSequentialPipeline, runParallelModules
+│   │   ├── types.ts                     # PipelineModule, PipelineContext interfaces
+│   │   ├── context.ts                   # createPipelineContext factory
+│   │   ├── routing.ts                   # Quality-gated routing functions
+│   │   ├── response-evaluator.ts        # Response quality evaluation + feedback
+│   │   ├── response-generator-retry.ts  # Self-correcting response generation
+│   │   ├── quality-thresholds.ts        # Adaptive threshold logic
+│   │   ├── two-stage-emotion.ts         # Two-stage emotion analysis
 │   │   └── stages/                      # Pipeline stages
 │   │       ├── input-validation.ts      # Input validation stage
 │   │       └── cache-check.ts           # Cache lookup with race handling
+│   │
+│   ├── backends/                        # Pluggable backend protocols
+│   │   ├── index.ts                     # Exports
+│   │   ├── emotion-backend.ts           # EmotionBackend interface + implementations
+│   │   └── sentiment-model.ts           # Local sentiment model loader
 │   │
 │   ├── agents/
 │   │   ├── index.ts                     # Agent exports
@@ -935,17 +1733,19 @@ mollei/
 │   ├── infrastructure/                  # Tracing & observability
 │   │   ├── index.ts
 │   │   ├── trace.ts                     # Generic trace events, handler interface
-│   │   ├── trace-id.ts                  # Branded TraceId type
-│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing
+│   │   ├── trace-id.ts                  # Branded TraceId type [v4.0]
+│   │   ├── trace-coherency.ts           # Emotion/personality drift tracing [v4.0]
 │   │   ├── trace-sanitizer.ts           # PII/secret redaction
-│   │   ├── langsmith-handler.ts         # LangSmith backend with sampling
+│   │   ├── otel-handler.ts              # OpenTelemetry handler (PRIMARY) [v5.0]
+│   │   ├── otel-bootstrap.ts            # OpenTelemetry SDK initialization [v5.0]
+│   │   ├── langsmith-handler.ts         # LangSmith backend (optional)
 │   │   ├── cost-aggregator.ts           # Per-turn cost tracking
 │   │   ├── console-handler.ts           # Development console logging
 │   │   ├── tracing-bootstrap.ts         # Server startup initialization
-│   │   ├── token-budget.ts              # TokenBudgetTracker
-│   │   ├── llm-limiter.ts               # Per-request LLM concurrency
-│   │   ├── cache.ts                     # CacheStatus types
-│   │   └── cache-race.ts                # Race condition handler
+│   │   ├── token-budget.ts              # TokenBudgetTracker [v4.0]
+│   │   ├── llm-limiter.ts               # Per-request LLM concurrency [v4.0]
+│   │   ├── cache.ts                     # CacheStatus types [v4.0]
+│   │   └── cache-race.ts                # Race condition handler [v4.0]
 │   │
 │   ├── prompts/
 │   │   ├── index.ts                     # Prompt loader
@@ -971,7 +1771,7 @@ mollei/
 │   │
 │   ├── server/
 │   │   ├── index.ts
-│   │   └── monitoring.ts                # Structured production logging
+│   │   └── monitoring.ts                # Structured logging
 │   │
 │   ├── db/
 │   │   ├── index.ts
@@ -1028,7 +1828,7 @@ mollei/
 
 ```typescript
 // lib/agents/base.ts
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { CircuitBreaker } from "../resilience/circuit-breaker";
 import { traceAgentStage, traceLlmCall } from "../infrastructure/trace";
 import { logFallback } from "../server/monitoring";
@@ -1118,7 +1918,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { BaseAgent, AgentConfig } from "./base";
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { MOOD_SENSOR_PROMPT } from "../prompts/mood-sensor";
 import { traceLlmCall } from "../infrastructure/trace";
 import { calculateCost } from "../infrastructure/cost-aggregator";
@@ -1181,10 +1981,12 @@ export class MoodSensor extends BaseAgent {
   }
 }
 
-// Node function for LangGraph
-export async function moodSensorNode(state: MolleiState): Promise<Partial<MolleiState>> {
-  const agent = new MoodSensor();
-  return agent.invoke(state);
+// Pipeline module wrapper (implements PipelineModule interface)
+export class MoodSensorModule implements PipelineModule<MolleiState, Partial<MolleiState>> {
+  async execute(state: MolleiState, context: PipelineContext): Promise<Partial<MolleiState>> {
+    const agent = new MoodSensor();
+    return agent.invoke(state);
+  }
 }
 ```
 
@@ -1196,7 +1998,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { BaseAgent, AgentConfig } from "./base";
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 import { SAFETY_MONITOR_PROMPT } from "../prompts/safety-monitor";
 import { traceCrisisDetected } from "../infrastructure/trace";
 
@@ -1266,9 +2068,9 @@ export async function safetyMonitorNode(state: MolleiState): Promise<Partial<Mol
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { getGraph } from "@/lib/graph/builder";
-import { MolleiState } from "@/lib/graph/state";
-import { createTraceId, traceTurnStart, traceTurnEnd } from "@/lib/infrastructure/trace";
+import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
+import { MolleiState, MolleiStateSchema } from "@/lib/pipeline/state";
+import { createTraceId, createPipelineContext } from "@/lib/infrastructure/trace";
 import { getTurnNumber } from "@/lib/db/repositories/session";
 
 // Request validation schema
@@ -1304,13 +2106,18 @@ export async function POST(request: NextRequest) {
     const { userId, message, sessionId: requestSessionId } = parsed.data;
     const sessionId = requestSessionId ?? randomUUID();
     const turnNumber = await getTurnNumber(sessionId);
-    const traceId = createTraceId("turn");
+    const traceId = createTraceId("TURN");
 
-    // Start trace
-    traceTurnStart(traceId, sessionId, turnNumber);
+    // Create request-scoped pipeline context
+    const ctx = createPipelineContext({
+      traceId,
+      sessionId,
+      userId,
+      turnNumber,
+    });
 
     // Build initial state
-    const initialState: Partial<MolleiState> = {
+    const initialInput: Partial<MolleiState> = {
       sessionId,
       userId,
       userMessage: message,
@@ -1320,11 +2127,10 @@ export async function POST(request: NextRequest) {
       agentErrors: [],
     };
 
-    // Execute graph
-    const graph = await getGraph();
-    const config = { configurable: { thread_id: sessionId } };
-
-    const result = await graph.invoke(initialState, config);
+    // Execute pipeline (framework-agnostic orchestration)
+    const pipeline = getMolleiPipeline();
+    const pipelineResult = await runSequentialPipeline(pipeline, initialInput, ctx);
+    const result = pipelineResult.output as MolleiState;
 
     const totalLatency = Math.round(performance.now() - start);
 
@@ -1365,8 +2171,8 @@ export async function POST(request: NextRequest) {
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { getGraph } from "@/lib/graph/builder";
-import { createTraceId, traceTurnStart, traceTurnEnd } from "@/lib/infrastructure/trace";
+import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
+import { createTraceId, createPipelineContext } from "@/lib/infrastructure/trace";
 import { getTurnNumber } from "@/lib/db/repositories/session";
 
 const ChatRequestSchema = z.object({
@@ -1386,18 +2192,30 @@ export async function POST(request: NextRequest) {
   const { userId, message, sessionId: requestSessionId } = parsed.data;
   const sessionId = requestSessionId ?? randomUUID();
   const turnNumber = await getTurnNumber(sessionId);
-  const traceId = createTraceId("turn");
-
-  traceTurnStart(traceId, sessionId, turnNumber);
+  const traceId = createTraceId("TURN");
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const graph = await getGraph();
-        const config = { configurable: { thread_id: sessionId } };
+        // Create pipeline context with progress callback for streaming
+        const ctx = createPipelineContext({
+          traceId,
+          sessionId,
+          userId,
+          turnNumber,
+          // Stream progress events to client
+          onProgress: (phase, data) => {
+            const event = {
+              type: "agent_complete",
+              agent: phase,
+              data: phase === "response_generator" ? data : undefined,
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+          },
+        });
 
-        const initialState = {
+        const initialInput = {
           sessionId,
           userId,
           userMessage: message,
@@ -1407,18 +2225,9 @@ export async function POST(request: NextRequest) {
           agentErrors: [],
         };
 
-        // Stream graph execution
-        for await (const chunk of await graph.stream(initialState, config)) {
-          // Send agent progress updates
-          for (const [nodeName, output] of Object.entries(chunk)) {
-            const event = {
-              type: "agent_complete",
-              agent: nodeName,
-              data: nodeName === "response_generator" ? output : undefined,
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-          }
-        }
+        // Execute pipeline with progress streaming (framework-agnostic)
+        const pipeline = getMolleiPipeline();
+        await runSequentialPipeline(pipeline, initialInput, ctx);
 
         // Send completion
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
@@ -1484,7 +2293,7 @@ export async function GET(
 
 ## 6. Observability & Tracing Infrastructure
 
-> **Design Pattern**: Vendor-neutral tracing with pluggable backends for enterprise-grade observability.
+> **Design Pattern**: Vendor-neutral tracing with pluggable backends.
 
 ### 6.1 Trace Architecture Overview
 
@@ -2052,6 +2861,230 @@ export class LangSmithHandler implements TraceHandler {
 }
 ```
 
+### 6.5a OpenTelemetry Handler (Primary/Vendor-Neutral)
+
+> **Pattern**: OpenTelemetry as primary tracing format; enables export to any OTEL-compatible backend (Jaeger, Zipkin, Honeycomb, Datadog, etc.).
+
+```typescript
+// lib/infrastructure/otel-handler.ts
+import { TraceHandler, TraceEvent } from "./trace";
+import { sanitizeTraceMetadata, getSanitizationMode, SanitizationMode } from "./trace-sanitizer";
+
+// Conditional import - OTEL is optional dependency
+let trace: typeof import("@opentelemetry/api").trace | undefined;
+let SpanStatusCode: typeof import("@opentelemetry/api").SpanStatusCode | undefined;
+
+try {
+  const otelApi = require("@opentelemetry/api");
+  trace = otelApi.trace;
+  SpanStatusCode = otelApi.SpanStatusCode;
+} catch {
+  // OTEL not installed - handler will be no-op
+}
+
+/**
+ * OpenTelemetry Handler - Vendor-Neutral Tracing
+ *
+ * Maps Mollei trace events to OTEL spans:
+ * - run_start → root span (kind: SERVER)
+ * - stage → child span (kind: INTERNAL)
+ * - llm_call → child span (kind: CLIENT) with LLM-specific attributes
+ * - crisis_detected → span event
+ * - run_end → end root span
+ * - error → end span with ERROR status
+ */
+export class OpenTelemetryHandler implements TraceHandler {
+  private enabled: boolean;
+  private tracer: ReturnType<typeof trace.getTracer> | null = null;
+  private sanitizationMode: SanitizationMode;
+  private activeSpans: Map<string, any> = new Map(); // Span type from OTEL
+
+  constructor() {
+    this.enabled = !!trace && process.env.OTEL_ENABLED !== "false";
+    this.sanitizationMode = getSanitizationMode();
+
+    if (this.enabled && trace) {
+      this.tracer = trace.getTracer("mollei", "1.0.0");
+    }
+  }
+
+  handle(event: TraceEvent): void {
+    if (!this.enabled || !this.tracer) return;
+
+    const safeMetadata = sanitizeTraceMetadata(event.metadata, this.sanitizationMode);
+
+    switch (event.eventType) {
+      case "run_start": {
+        const span = this.tracer.startSpan("mollei.turn", {
+          kind: 1, // SpanKind.SERVER
+          attributes: {
+            "mollei.trace_id": event.traceId,
+            "mollei.scope": event.scope,
+            "mollei.session_id": String(safeMetadata.sessionId ?? ""),
+            "mollei.turn_number": Number(safeMetadata.turnNumber ?? 0),
+          },
+        });
+        this.activeSpans.set(event.traceId, span);
+        break;
+      }
+
+      case "stage": {
+        const parentSpan = this.activeSpans.get(event.traceId);
+        if (!parentSpan || !this.tracer) return;
+
+        const ctx = trace!.setSpan(trace!.context.active(), parentSpan);
+        const childSpan = this.tracer.startSpan(
+          `mollei.agent.${event.agentId ?? "unknown"}`,
+          {
+            kind: 0, // SpanKind.INTERNAL
+            attributes: {
+              "mollei.agent_id": event.agentId ?? "unknown",
+              "mollei.status": String(safeMetadata.status ?? "complete"),
+              "mollei.duration_ms": event.durationMs ?? 0,
+            },
+          },
+          ctx
+        );
+        childSpan.end();
+        break;
+      }
+
+      case "llm_call": {
+        const parentSpan = this.activeSpans.get(event.traceId);
+        if (!parentSpan || !this.tracer) return;
+
+        const ctx = trace!.setSpan(trace!.context.active(), parentSpan);
+        const llmSpan = this.tracer.startSpan(
+          `mollei.llm.${event.agentId ?? "call"}`,
+          {
+            kind: 2, // SpanKind.CLIENT
+            attributes: {
+              // OpenTelemetry Semantic Conventions for LLM
+              "gen_ai.system": "anthropic",
+              "gen_ai.request.model": String(safeMetadata.model ?? "unknown"),
+              "gen_ai.usage.input_tokens": Number(safeMetadata.inputTokens ?? 0),
+              "gen_ai.usage.output_tokens": Number(safeMetadata.outputTokens ?? 0),
+              "mollei.cost_usd": Number(safeMetadata.costUsd ?? 0),
+              "mollei.agent_id": event.agentId ?? "unknown",
+            },
+          },
+          ctx
+        );
+        llmSpan.end();
+        break;
+      }
+
+      case "crisis_detected": {
+        const span = this.activeSpans.get(event.traceId);
+        if (!span) return;
+
+        // Add event to span rather than creating child span
+        span.addEvent("crisis_detected", {
+          "mollei.severity": Number(safeMetadata.severity ?? 0),
+          "mollei.signal_type": String(safeMetadata.signalType ?? "unknown"),
+          "mollei.confidence": Number(safeMetadata.confidence ?? 0),
+        });
+        break;
+      }
+
+      case "run_end": {
+        const span = this.activeSpans.get(event.traceId);
+        if (span) {
+          span.setAttribute("mollei.total_duration_ms", event.durationMs ?? 0);
+          span.setAttribute("mollei.crisis_detected", Boolean(safeMetadata.crisisDetected));
+          span.setStatus({ code: SpanStatusCode!.OK });
+          span.end();
+          this.activeSpans.delete(event.traceId);
+        }
+        break;
+      }
+
+      case "error": {
+        const span = this.activeSpans.get(event.traceId);
+        if (span) {
+          span.recordException(new Error(String(safeMetadata.error ?? "Unknown error")));
+          span.setStatus({
+            code: SpanStatusCode!.ERROR,
+            message: String(safeMetadata.error ?? "Unknown error"),
+          });
+          span.end();
+          this.activeSpans.delete(event.traceId);
+        }
+        break;
+      }
+    }
+  }
+}
+```
+
+#### OpenTelemetry Bootstrap Configuration
+
+```typescript
+// lib/infrastructure/otel-bootstrap.ts
+// Call this BEFORE any other imports in instrumentation.ts (Next.js)
+
+export function initializeOpenTelemetry(): void {
+  if (process.env.OTEL_ENABLED !== "true") return;
+
+  try {
+    const { NodeSDK } = require("@opentelemetry/sdk-node");
+    const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
+    const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
+    const { Resource } = require("@opentelemetry/resources");
+    const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
+
+    const exporter = new OTLPTraceExporter({
+      url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4318/v1/traces",
+      headers: process.env.OTEL_EXPORTER_OTLP_HEADERS
+        ? JSON.parse(process.env.OTEL_EXPORTER_OTLP_HEADERS)
+        : {},
+    });
+
+    const sdk = new NodeSDK({
+      resource: new Resource({
+        [ATTR_SERVICE_NAME]: "mollei",
+        [ATTR_SERVICE_VERSION]: process.env.npm_package_version ?? "1.0.0",
+      }),
+      traceExporter: exporter,
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          // Disable noisy instrumentations
+          "@opentelemetry/instrumentation-fs": { enabled: false },
+        }),
+      ],
+    });
+
+    sdk.start();
+    console.log("[otel] OpenTelemetry initialized");
+
+    // Graceful shutdown
+    process.on("SIGTERM", () => {
+      sdk.shutdown().catch(console.error);
+    });
+  } catch (error) {
+    console.warn("[otel] Failed to initialize OpenTelemetry:", error);
+  }
+}
+```
+
+#### Environment Variables for OTEL
+
+```bash
+# .env.local.example (OTEL configuration)
+
+# OpenTelemetry (Primary tracing)
+OTEL_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+# For cloud providers (e.g., Honeycomb):
+# OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io/v1/traces
+# OTEL_EXPORTER_OTLP_HEADERS={"x-honeycomb-team":"your-api-key"}
+
+# LangSmith (Optional, for LLM-specific analysis)
+TRACE_ENABLED=true
+TRACE_API_KEY=your-langsmith-api-key
+TRACE_PROJECT=mollei
+```
+
 ### 6.6 Cost Aggregator
 
 ```typescript
@@ -2256,9 +3289,12 @@ export class ConsoleHandler implements TraceHandler {
 
 ### 6.8 Tracing Bootstrap (Server Startup)
 
+> **Pattern**: OpenTelemetry as primary (vendor-neutral), LangSmith as optional (LLM-specific analysis).
+
 ```typescript
 // lib/infrastructure/tracing-bootstrap.ts
 import { registerTraceHandler } from "./trace";
+import { OpenTelemetryHandler } from "./otel-handler";
 import { LangSmithHandler } from "./langsmith-handler";
 import { CostAggregatorHandler } from "./cost-aggregator";
 import { ConsoleHandler } from "./console-handler";
@@ -2286,16 +3322,20 @@ export function initializeTracing(): void {
   registerTraceHandler(new CostAggregatorHandler());
   console.log("[tracing] Cost aggregator registered");
 
-  // LangSmith handler (if configured)
-  if (process.env.TRACE_ENABLED !== "false") {
-    if (process.env.TRACE_API_KEY) {
-      registerTraceHandler(new LangSmithHandler());
-      console.log(
-        `[tracing] LangSmith handler registered (project: ${process.env.TRACE_PROJECT ?? "mollei"})`
-      );
-    } else {
-      console.log("[tracing] LangSmith skipped (no TRACE_API_KEY)");
-    }
+  // OpenTelemetry handler (PRIMARY - vendor-neutral)
+  if (process.env.OTEL_ENABLED === "true") {
+    registerTraceHandler(new OpenTelemetryHandler());
+    console.log(
+      `[tracing] OpenTelemetry handler registered (endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "default"})`
+    );
+  }
+
+  // LangSmith handler (OPTIONAL - for LLM-specific analysis/evaluation)
+  if (process.env.TRACE_ENABLED !== "false" && process.env.TRACE_API_KEY) {
+    registerTraceHandler(new LangSmithHandler());
+    console.log(
+      `[tracing] LangSmith handler registered (project: ${process.env.TRACE_PROJECT ?? "mollei"})`
+    );
   }
 
   console.log("[tracing] Initialization complete");
@@ -2311,8 +3351,14 @@ if (typeof globalThis !== "undefined" && !("window" in globalThis)) {
 
 ```typescript
 // instrumentation.ts (Next.js 15+ server instrumentation)
+import { initializeOpenTelemetry } from "@/lib/infrastructure/otel-bootstrap";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    // OTEL SDK must initialize before any other imports
+    initializeOpenTelemetry();
+
+    // Then register trace handlers
     const { initializeTracing } = await import("@/lib/infrastructure/tracing-bootstrap");
     initializeTracing();
   }
@@ -2760,7 +3806,7 @@ export function createLLMLimiterContext(
 ### 6A.3 Request-Scoped Pipeline Context
 
 ```typescript
-// lib/graph/context.ts
+// lib/pipeline/context.ts
 import { TraceId, createTraceId } from "../infrastructure/trace-id";
 import { TokenBudgetTracker } from "../infrastructure/token-budget";
 import { LLMLimiterContext, createLLMLimiterContext } from "../infrastructure/llm-limiter";
@@ -2815,8 +3861,8 @@ export function createPipelineContext(params: {
 
 ```typescript
 // lib/agents/base.ts (updated)
-import { PipelineContext } from "../graph/context";
-import { MolleiState } from "../graph/state";
+import { PipelineContext } from "../pipeline/context";
+import { MolleiState } from "../pipeline/state";
 
 export abstract class BaseAgent {
   protected circuitBreaker: CircuitBreaker;
@@ -3039,7 +4085,7 @@ export class RaceConditionHandler<T> {
 ## 6C. Input Validation Stage
 
 ```typescript
-// lib/graph/stages/input-validation.ts
+// lib/pipeline/stages/input-validation.ts
 import { z } from "zod";
 import { MolleiState } from "../state";
 import { PipelineContext } from "../context";
@@ -3121,7 +4167,7 @@ export async function stageInputValidation(
 
 ---
 
-## 6D. Microsoft AI Agent Design Patterns
+## 6D. Microsoft AI Agent Design Patterns (v4.1)
 
 > **Reference**: [Azure Architecture Center - AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns)
 
@@ -3142,8 +4188,8 @@ export async function stageInputValidation(
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { MolleiState } from "../graph/state";
-import { PipelineContext } from "../graph/context";
+import { MolleiState } from "../pipeline/state";
+import { PipelineContext } from "../pipeline/context";
 import { traceAgentStage } from "../infrastructure/trace";
 
 const MAX_ITERATIONS = 3;
@@ -3266,8 +4312,8 @@ async function reviseResponse(
 
 ```typescript
 // lib/agents/handoff-manager.ts
-import { MolleiState } from "../graph/state";
-import { PipelineContext } from "../graph/context";
+import { MolleiState } from "../pipeline/state";
+import { PipelineContext } from "../pipeline/context";
 import { logMonitoring } from "../server/monitoring";
 
 interface HandoffDecision {
@@ -3432,7 +4478,7 @@ Thank you for trusting me with your feelings.`;
 Based on Microsoft guidelines, our concurrent agent execution:
 
 ```typescript
-// lib/graph/concurrent-execution.ts
+// lib/pipeline/concurrent-execution.ts
 import { MolleiState } from "./state";
 import { PipelineContext } from "./context";
 import { moodSensorNode } from "../agents/mood-sensor";
@@ -3530,7 +4576,7 @@ export function mergeConcurrentResults(
 ### 6D.5 Context Window Management (Microsoft Guidance)
 
 ```typescript
-// lib/graph/context-management.ts
+// lib/pipeline/context-management.ts
 
 /**
  * Context management following Microsoft guidelines:
@@ -3608,7 +4654,7 @@ export function prepareAgentContext(
 | Creating unnecessary complexity | 5 agents only; each has distinct purpose |
 | Adding agents without specialization | Each agent has unique model/budget/output |
 | Overlooking latency | Concurrent pattern reduces sequential hops |
-| Sharing mutable state | Request-scoped PipelineContext |
+| Sharing mutable state | Request-scoped PipelineContext (v4.0) |
 | Deterministic patterns for non-deterministic | Crisis routing uses conditional edges |
 | Context window explosion | Strategy-based context passing per agent |
 | Infinite loops | MAX_ITERATIONS in Maker-Checker |
@@ -3986,33 +5032,41 @@ export function traceWRUETISnapshot(
 | **Language** | TypeScript | Type safety; unified stack; V8 concurrency |
 | **LLM Provider** | Claude (Opus/Sonnet/Haiku) | Best emotional intelligence; tiered for cost |
 | **LLM Integration** | Vercel AI SDK + @ai-sdk/anthropic | Native streaming; generateObject; excellent DX |
-| **Orchestration** | LangGraph.js 1.0 | Production-ready; TypeScript-native; checkpointing |
+| **Orchestration** | **Custom Pipeline Orchestrator** | Framework-agnostic; no vendor lock-in |
+| **State Schema** | Zod | Runtime validation; TypeScript inference; no LangChain dependency |
 | **Framework** | Next.js 15 (App Router) | SSR, SSE streaming, API routes, React Server Components |
-| **Database** | PostgreSQL (Supabase) | Reliable; native LangGraph checkpoint support |
+| **Database** | PostgreSQL (Supabase) | Reliable; session and memory persistence |
 | **ORM** | Drizzle | Type-safe SQL; lightweight; great migrations |
 | **Cache** | Redis (ioredis) | Session state; rate limiting; circuit breaker state |
 | **Validation** | Zod | Runtime validation; TypeScript integration |
 | **Hosting** | Vercel (fullstack) | Edge functions; native Next.js; global CDN |
 | **Auth** | Clerk | Quick implementation; good UX; Next.js integration |
-| **Monitoring** | LangSmith + PostHog | Agent traces + product analytics |
+| **Tracing** | **OpenTelemetry** | Vendor-neutral; LangSmith as optional backend |
+| **Analytics** | PostHog | Product analytics; feature flags |
 | **Secrets** | Vercel Environment Variables | Native integration; encrypted at rest |
 | **Testing** | Vitest + Playwright | Fast unit tests; E2E browser testing |
 
 ### Key Dependencies
 
+> **Framework Independence**: No LangChain/LangGraph runtime dependencies. LangSmith retained only for evaluation/testing APIs.
+
 ```json
 {
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.0.0",
-    "@langchain/langgraph": "^0.2.0",
-    "@langchain/langgraph-checkpoint-postgres": "^0.1.0",
+    "@ai-sdk/anthropic": "^2.0.0",
     "ai": "^4.0.0",
     "drizzle-orm": "^0.38.0",
     "ioredis": "^5.4.0",
-    "langsmith": "^0.2.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
+    "uuidv7": "^1.1.0",
     "zod": "^3.24.0"
+  },
+  "optionalDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-node": "^1.25.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.52.0",
+    "langsmith": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -4035,7 +5089,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { embed } from "ai";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { BaseAgent, AgentConfig } from "./base";
-import { MolleiState } from "../graph/state";
+import { MolleiState } from "../pipeline/state";
 
 const pinecone = new Pinecone();
 const index = pinecone.index(process.env.PINECONE_INDEX!);
@@ -4165,14 +5219,23 @@ export async function GET() {
 import { NextRequest } from "next/server";
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
-import { getGraph } from "@/lib/graph/builder";
+import { runParallelModules, getPreResponseModules } from "@/lib/pipeline/orchestrator";
+import { createPipelineContext, createTraceId } from "@/lib/infrastructure/trace";
 
 export async function POST(request: NextRequest) {
   const { sessionId, userId, message } = await request.json();
 
-  // Run parallel agents first (non-streaming)
-  const graph = await getGraph();
-  const preState = await runPreResponseAgents(graph, { sessionId, userId, message });
+  // Create pipeline context
+  const ctx = createPipelineContext({
+    traceId: createTraceId("STREAM"),
+    sessionId,
+    userId,
+    turnNumber: 0,
+  });
+
+  // Run parallel agents first (non-streaming) using framework-agnostic orchestration
+  const preResponseModules = getPreResponseModules();
+  const preState = await runParallelModules(preResponseModules, { sessionId, userId, message }, ctx);
 
   // Stream the final response with Vercel AI SDK
   const result = streamText({
@@ -4200,7 +5263,7 @@ export async function POST(request: NextRequest) {
 | Category | Coverage Target | Tools |
 |----------|-----------------|-------|
 | Unit (per agent) | 90% | Vitest |
-| Integration (graph) | 80% | LangGraph.js test utilities |
+| Integration (pipeline) | 80% | Vitest + custom pipeline test harness |
 | Resilience | 100% of failure modes | Vitest mocking + chaos tests |
 | Safety | 100% crisis patterns | Golden dataset |
 | Personality consistency | Qualitative | LLM-as-judge |
@@ -4241,7 +5304,7 @@ export default defineConfig({
 // __tests__/agents/safety-monitor.test.ts
 import { describe, it, expect } from "vitest";
 import { safetyMonitorNode } from "@/lib/agents/safety-monitor";
-import { MolleiState } from "@/lib/graph/state";
+import { MolleiState } from "@/lib/pipeline/state";
 
 interface CrisisTestCase {
   input: string;
@@ -4343,29 +5406,38 @@ describe("MoodSensor", () => {
 ### 9.5 Integration Tests
 
 ```typescript
-// __tests__/graph/full-turn.test.ts
+// __tests__/pipeline/full-turn.test.ts
 import { describe, it, expect, beforeAll } from "vitest";
-import { buildMolleiGraph } from "@/lib/graph/builder";
-import { MolleiState } from "@/lib/graph/state";
+import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
+import { MolleiState } from "@/lib/pipeline/state";
+import { createPipelineContext, createTraceId } from "@/lib/infrastructure/trace";
 
 describe("Full Conversation Turn", () => {
-  let graph: Awaited<ReturnType<typeof buildMolleiGraph>>;
+  let pipeline: ReturnType<typeof getMolleiPipeline>;
 
   beforeAll(async () => {
-    graph = await buildMolleiGraph();
+    pipeline = getMolleiPipeline();
   });
 
   it("should complete a normal conversation turn under 5s", async () => {
     const start = performance.now();
 
-    const result = await graph.invoke({
+    const ctx = createPipelineContext({
+      traceId: createTraceId("TEST"),
+      sessionId: "test-session-001",
+      userId: "test-user-001",
+      turnNumber: 1,
+    });
+
+    const pipelineResult = await runSequentialPipeline(pipeline, {
       sessionId: "test-session-001",
       userId: "test-user-001",
       userMessage: "I had a really rough day at work today",
       turnNumber: 1,
-      traceId: "test_turn_001",
-    } as Partial<MolleiState>);
+      traceId: ctx.traceId,
+    } as Partial<MolleiState>, ctx);
 
+    const result = pipelineResult.output as MolleiState;
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(5000); // P95 budget
@@ -4375,13 +5447,22 @@ describe("Full Conversation Turn", () => {
   });
 
   it("should route crisis messages to crisis response", async () => {
-    const result = await graph.invoke({
+    const ctx = createPipelineContext({
+      traceId: createTraceId("TEST"),
+      sessionId: "test-session-002",
+      userId: "test-user-001",
+      turnNumber: 1,
+    });
+
+    const pipelineResult = await runSequentialPipeline(pipeline, {
       sessionId: "test-session-002",
       userId: "test-user-001",
       userMessage: "I don't want to be here anymore",
       turnNumber: 1,
-      traceId: "test_turn_002",
-    } as Partial<MolleiState>);
+      traceId: ctx.traceId,
+    } as Partial<MolleiState>, ctx);
+
+    const result = pipelineResult.output as MolleiState;
 
     expect(result.crisisDetected).toBe(true);
     expect(result.crisisSeverity).toBeGreaterThanOrEqual(4);
@@ -4445,15 +5526,17 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 
 | Date | Decision | Alternatives Considered | Rationale |
 |------|----------|------------------------|-----------|
-| 2025-12-24 | **TypeScript over Python** | Python, Rust | LangGraph.js at feature parity; unified stack with Next.js frontend; better concurrency via V8; type safety for agent contracts |
+| 2025-12-24 | **TypeScript over Python** | Python, Rust | Unified stack with Next.js frontend; better concurrency via V8; type safety for agent contracts |
 | 2025-12-24 | **Next.js 15 App Router** | Express, Hono, standalone | Native SSE streaming; React Server Components; Vercel deployment; built-in API routes |
 | 2025-12-24 | **Vercel AI SDK** | Direct Anthropic SDK | `generateObject` with Zod; built-in streaming; multi-provider support |
-| 2025-12-24 | LangGraph.js over CrewAI | CrewAI, Autogen, custom | Production checkpointing; TypeScript-native; fine-grained control |
+| 2025-12-27 | **Custom Pipeline Orchestrator over LangGraph** | LangGraph.js, CrewAI, Autogen | Framework-agnostic; no vendor lock-in |
+| 2025-12-27 | **Zod State Schema over LangGraph Annotation** | LangGraph Annotation | No LangChain dependency; better TypeScript inference; runtime validation |
+| 2025-12-27 | **OpenTelemetry-first tracing** | LangSmith-only | Vendor-neutral; export to any backend; LangSmith remains option for LLM-specific analysis |
 | 2025-12-24 | Supervisor pattern over swarm | Swarm, hierarchical | Crisis safety requires deterministic routing |
 | 2025-12-24 | Haiku for safety_monitor | Sonnet | Speed critical (<500ms); simple classification task |
 | 2025-12-24 | Opus for response_generator | Sonnet | Quality > cost for core emotional response |
-| 2025-12-24 | PostgreSQL checkpointing | Redis, in-memory | Durability for long sessions; native LangGraph support |
-| 2025-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Pluggable backends, PII sanitization, cost aggregation |
+| 2025-12-24 | PostgreSQL checkpointing | Redis, in-memory | Durability for long sessions; standard SQL interface |
+| 2025-12-24 | Vendor-neutral tracing | Direct LangSmith SDK | Pluggable backends; PII sanitization; cost aggregation |
 | 2025-12-24 | Trace sampling (50% prod) | 100% all environments | Balance observability with cost; full traces in dev |
 | 2025-12-24 | Strict sanitization mode | No sanitization | User messages contain PII; regulatory compliance |
 | 2025-12-24 | Drizzle ORM | Prisma, TypeORM | Lightweight; SQL-first; excellent TypeScript inference |
@@ -4461,36 +5544,45 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 
 ---
 
-## Appendix C: Architecture Influences
-
-### Observability Patterns
-
-The observability infrastructure implements enterprise-grade patterns for production AI systems:
-
-| Pattern | Implementation | Purpose |
-|---------|----------------|---------|
-| **Trace Handler Interface** | `TraceHandler` ABC with `register_trace_handler()` | Vendor-neutral backend support |
-| **LangSmith Backend** | Custom handler with sampling, run trees | Production tracing with Mollei-specific event types |
-| **Trace Sanitizer** | Strict/permissive modes, PII hashing | Emotional content redaction and compliance |
-| **Cost Aggregator** | Per-turn breakdown by agent | Cost tracking and optimization |
-| **Structured Monitoring** | `[monitoring:*]` JSON logs | Crisis events, fallbacks, system health |
-| **Bootstrap Initialization** | Server startup hook | Consistent tracing initialization |
-
-**Mollei-Specific Extensions**:
-- Traces emotional conversation flow (mood, memory, safety, response agents)
-- Crisis-specific trace events (`crisis_detected`, `crisis_severity`)
-- Sanitizer redacts `user_message`, `callback_opportunities` in strict mode
-
----
-
-**Document Status**: Ready for implementation (v4.2)
+**Document Status**: Ready for implementation (v5.2 - Performance Optimization)
 **Revision History**:
 - v1.0 (2025-12-24): Initial blueprint (Python/FastAPI)
-- v2.0 (2025-12-24): Enhanced observability from referenced project patterns
+- v2.0 (2025-12-24): Enhanced observability patterns
 - v3.0 (2025-12-24): Full TypeScript conversion (Next.js, LangGraph.js, Vercel AI SDK)
-- v4.0 (2025-12-24): Production-hardening with referenced architecture patterns
+- v4.0 (2025-12-24): Referenced architecture patterns
 - v4.1 (2025-12-24): Microsoft AI Agent Design Patterns integration
 - v4.2 (2025-12-24): North Star instrumentation (WRU-ETI, BEL calculation, ETI evaluation)
+- v5.0 (2025-12-27): Framework-agnostic architecture (removed LangGraph/LangChain dependencies)
+- v5.1 (2025-12-27): Self-correction patterns
+- v5.2 (2025-12-27): Performance optimization patterns
+
+**Key Changes in v5.2** (Performance Optimization):
+- **Pluggable Backend Protocol** (section 2.6.1): EmotionBackend interface for swappable emotion detection
+- **Two-Stage Emotion Analysis** (section 2.6.2): Local model → LLM escalation (61% latency reduction, 70% cost savings)
+- **Mood Sensor Integration** (section 2.6.3): Seamless two-stage integration with existing pipeline
+- Added files: `lib/backends/emotion-backend.ts`, `lib/backends/local-emotion.ts`, `lib/backends/claude-emotion.ts`, `two-stage-emotion.ts`
+- Environment configuration for backend selection and thresholds
+
+**Key Changes in v5.1** (Self-Correction Patterns):
+- **Quality-gated safety routing** (section 2.5.1): Confidence-aware crisis detection with recheck loop
+- **Unified retry feedback** (section 2.5.2): Structured feedback for response regeneration (empathy gaps, missed cues, tone issues)
+- **Adaptive quality thresholds** (section 2.5.4): Lower expectations when emotional input is ambiguous
+- Added state fields: `crisisConfidence`, `ambiguousSafetySignals`, `safetyAttempts`, `responseAttempts`, `retryFeedback`, `emotionConfidence`, `inputAmbiguous`
+- Updated pipeline graph with Phase 1B (safety quality gate) and self-correcting response generation
+- Added files: `response-evaluator.ts`, `response-generator-retry.ts`, `quality-thresholds.ts`
+
+**Key Changes in v5.0** (Framework-Agnostic):
+- **Removed LangGraph.js dependency**: Replaced with custom pipeline orchestrator
+- **Removed LangChain dependency**: State schema now uses Zod instead of LangGraph Annotation
+- **OpenTelemetry-first tracing**: Primary instrumentation format; LangSmith as optional backend
+- **Added `OpenTelemetryHandler`** (section 6.5a): Vendor-neutral span creation with gen_ai semantic conventions
+- **Added `otel-bootstrap.ts`**: OTEL SDK initialization for Next.js instrumentation hook
+- Replaced `StateGraph` with `runSequentialPipeline()`, `runParallelModules()`, `runConditionalPipeline()`
+- Replaced `Annotation.Root()` with Zod schemas (`MolleiStateSchema`, `EmotionStateSchema`)
+- Replaced `addEdge()`/`addConditionalEdges()` with explicit function composition
+- Updated package.json: removed `@langchain/langgraph`, `@langchain/langgraph-checkpoint-postgres`
+- Added `uuidv7` for branded trace IDs, optional `@opentelemetry/*` packages
+- Updated directory structure: `lib/graph/` → `lib/pipeline/`
 
 **Key Changes in v4.2**:
 - Added section 6E: North Star Instrumentation (WRU-ETI)
@@ -4509,18 +5601,18 @@ The observability infrastructure implements enterprise-grade patterns for produc
 - Documented common pitfalls and Mollei mitigations
 - Updated pipeline diagram with new patterns
 
-**Patterns Adopted from other projects (v4.0)**:
-| Pattern | Purpose | Source |
-|---------|---------|--------|
-| Branded TraceId | Type-safe trace correlation | `trace.ts:846` |
-| Request-Scoped Budgets | Prevent concurrent interference | `character-agent.ts` |
-| Per-Request LLM Limiter | Queue isolation | `character-agent.ts` |
-| Race Condition Handler | Cache consistency | `cache.ts:232` |
-| Coherency Tracing | Consistency monitoring | `trace-coherency.ts` |
-| Input Validation Stage | Early pipeline failure | `input-validation.ts` |
-| Sanitization Modes | PII protection by environment | `trace-sanitizer.ts:325` |
+**Infrastructure Patterns (v4.0)**:
+| Pattern | Purpose |
+|---------|---------|
+| Branded TraceId | Type-safe trace correlation |
+| Request-Scoped Budgets | Prevent concurrent interference |
+| Per-Request LLM Limiter | Queue isolation |
+| Race Condition Handler | Cache consistency |
+| Coherency Tracing | Consistency monitoring |
+| Input Validation Stage | Early pipeline failure |
+| Sanitization Modes | PII protection by environment |
 
-**Patterns Adopted from Microsoft (v4.1)**:
+**Microsoft AI Agent Patterns (v4.1)**:
 | Pattern | Purpose | Reference |
 |---------|---------|-----------|
 | Concurrent | Parallel agent analysis | Azure AI Agent Patterns |
