@@ -2,7 +2,11 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 12:30PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 ---
 
@@ -262,6 +266,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
 import { MolleiState } from "@/lib/pipeline/state";
 import { createPipelineContext, createTraceId } from "@/lib/infrastructure/trace";
+import { TRACE_SCOPE } from "@/lib/utils/constants";
 
 describe("Full Conversation Turn", () => {
   let pipeline: ReturnType<typeof getMolleiPipeline>;
@@ -274,7 +279,7 @@ describe("Full Conversation Turn", () => {
     const start = performance.now();
 
     const ctx = createPipelineContext({
-      traceId: createTraceId("TEST"),
+      traceId: createTraceId(TRACE_SCOPE.TEST),
       sessionId: "test-session-001",
       userId: "test-user-001",
       turnNumber: 1,
@@ -299,7 +304,7 @@ describe("Full Conversation Turn", () => {
 
   it("should route crisis messages to crisis response", async () => {
     const ctx = createPipelineContext({
-      traceId: createTraceId("TEST"),
+      traceId: createTraceId(TRACE_SCOPE.TEST),
       sessionId: "test-session-002",
       userId: "test-user-001",
       turnNumber: 1,

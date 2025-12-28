@@ -1,9 +1,13 @@
 # MOLLEI: Multi-Agent Architecture Blueprint
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 11:15AM PST
+> **Last Updated**: 12-28-25 2:00PM PST
 > **Status**: Open Source
 > **Modularized**: This document has been split into focused modules in `docs/architecture/`
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](architecture/IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 **Language**: TypeScript (Next.js)
 **Revision**: JTBD-Enhanced System Prompts (Modularized)
@@ -333,25 +337,29 @@ Covers:
 // lib/agents/long-term-memory.ts
 import { anthropic } from "@ai-sdk/anthropic";
 import { embed } from "ai";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { createClient } from "@supabase/supabase-js";
 import { BaseAgent, AgentConfig } from "./base";
 import { MolleiState } from "../pipeline/state";
+import { AGENT_IDS, TOKEN_BUDGETS, TIMEOUTS } from "../utils/constants";
 
-const pinecone = new Pinecone();
-const index = pinecone.index(process.env.PINECONE_INDEX!);
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
 interface MemoryMatch {
   type: "emotional_moment" | "recurring_theme";
   content: string;
   timestamp: number;
   emotionPrimary: string;
+  similarity: number;
 }
 
 const config: AgentConfig = {
-  agentId: "long_term_memory",
+  agentId: AGENT_IDS.LONG_TERM_MEMORY,
   model: "text-embedding-3-small",
-  tokenBudget: 500,
-  timeoutMs: 1500,
+  tokenBudget: TOKEN_BUDGETS.LONG_TERM_MEMORY,
+  timeoutMs: TIMEOUTS.LONG_TERM_MEMORY,
 };
 
 export class LongTermMemoryAgent extends BaseAgent {
@@ -366,21 +374,25 @@ export class LongTermMemoryAgent extends BaseAgent {
       value: state.userMessage,
     });
 
-    // Search Pinecone for relevant memories
-    const results = await index.namespace(state.userId).query({
-      vector: embedding,
-      topK: 5,
-      filter: {
-        type: { $in: ["emotional_moment", "recurring_theme"] },
-      },
-      includeMetadata: true,
+    // Search Supabase pgvector for relevant memories (per-user namespacing via user_id)
+    const { data: results, error } = await supabase.rpc("match_memories", {
+      query_embedding: embedding,
+      match_count: 5,
+      filter_user_id: state.userId,
+      filter_types: ["emotional_moment", "recurring_theme"],
     });
 
-    const memories: MemoryMatch[] = results.matches.map((m) => ({
-      type: m.metadata?.type as MemoryMatch["type"],
-      content: m.metadata?.content as string,
-      timestamp: m.metadata?.timestamp as number,
-      emotionPrimary: m.metadata?.emotionPrimary as string,
+    if (error) {
+      console.error("[long_term_memory] pgvector query failed:", error);
+      return { longTermMemories: [] };
+    }
+
+    const memories: MemoryMatch[] = (results ?? []).map((m: any) => ({
+      type: m.type as MemoryMatch["type"],
+      content: m.content as string,
+      timestamp: m.timestamp as number,
+      emotionPrimary: m.emotion_primary as string,
+      similarity: m.similarity as number,
     }));
 
     return { longTermMemories: memories };
@@ -467,13 +479,15 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 import { runParallelModules, getPreResponseModules } from "@/lib/pipeline/orchestrator";
 import { createPipelineContext, createTraceId } from "@/lib/infrastructure/trace";
+import { MODELS } from "@/lib/ai/models";
+import { TOKEN_BUDGETS, TRACE_SCOPE } from "@/lib/utils/constants";
 
 export async function POST(request: NextRequest) {
   const { sessionId, userId, message } = await request.json();
 
   // Create pipeline context
   const ctx = createPipelineContext({
-    traceId: createTraceId("STREAM"),
+    traceId: createTraceId(TRACE_SCOPE.STREAM),
     sessionId,
     userId,
     turnNumber: 0,
@@ -485,10 +499,10 @@ export async function POST(request: NextRequest) {
 
   // Stream the final response with Vercel AI SDK
   const result = streamText({
-    model: anthropic("claude-sonnet-4-5"),
+    model: anthropic(MODELS.SONNET),
     system: buildResponsePrompt(preState),
     prompt: message,
-    maxTokens: 800,
+    maxTokens: TOKEN_BUDGETS.RESPONSE_GENERATOR,
     onFinish: async ({ text, usage }) => {
       // Persist after stream completes
       await persistTurn(sessionId, message, text, usage);

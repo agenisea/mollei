@@ -2,7 +2,11 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 ---
 
@@ -10,6 +14,7 @@
 
 ```typescript
 // lib/resilience/circuit-breaker.ts
+import { AGENT_IDS, CIRCUIT_BREAKER } from "../utils/constants";
 
 interface CircuitBreakerConfig {
   failureThreshold: number;
@@ -18,11 +23,11 @@ interface CircuitBreakerConfig {
 }
 
 const CIRCUIT_BREAKER_CONFIGS: Record<string, CircuitBreakerConfig> = {
-  mood_sensor: { failureThreshold: 5, recoveryTimeoutMs: 30000, halfOpenRequests: 1 },
-  memory_agent: { failureThreshold: 3, recoveryTimeoutMs: 30000, halfOpenRequests: 1 },
-  safety_monitor: { failureThreshold: 5, recoveryTimeoutMs: 30000, halfOpenRequests: 1 },
-  emotion_reasoner: { failureThreshold: 3, recoveryTimeoutMs: 30000, halfOpenRequests: 1 },
-  response_generator: { failureThreshold: 2, recoveryTimeoutMs: 30000, halfOpenRequests: 1 },
+  [AGENT_IDS.MOOD_SENSOR]: { failureThreshold: 5, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
+  [AGENT_IDS.MEMORY_AGENT]: { failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
+  [AGENT_IDS.SAFETY_MONITOR]: { failureThreshold: 5, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
+  [AGENT_IDS.EMOTION_REASONER]: { failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
+  [AGENT_IDS.RESPONSE_GENERATOR]: { failureThreshold: 2, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
 };
 
 type CircuitState = "closed" | "open" | "half_open";
@@ -35,9 +40,9 @@ export class CircuitBreaker {
 
   constructor(private agentId: string) {
     this.config = CIRCUIT_BREAKER_CONFIGS[agentId] ?? {
-      failureThreshold: 3,
-      recoveryTimeoutMs: 30000,
-      halfOpenRequests: 1,
+      failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD,
+      recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS,
+      halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS,
     };
   }
 
@@ -99,6 +104,8 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { MolleiState } from "../pipeline/state";
 import { logFallback } from "../server/monitoring";
+import { AGENT_MODELS } from "../ai/models";
+import { AGENT_IDS, TOKEN_BUDGETS, TIMEOUTS } from "../utils/constants";
 
 const TEMPLATE_RESPONSES = [
   "I can sense you're going through something right now. I'm here with you.",
@@ -118,34 +125,34 @@ export async function responseGeneratorWithFallback(
   // Tier 1: Sonnet (primary response generation)
   try {
     const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-5"),
+      model: anthropic(AGENT_MODELS.RESPONSE_GENERATOR),
       system: systemPrompt,
       prompt: state.userMessage,
-      maxTokens: 800,
-      abortSignal: AbortSignal.timeout(1500),
+      maxTokens: TOKEN_BUDGETS.RESPONSE_GENERATOR,
+      abortSignal: AbortSignal.timeout(TIMEOUTS.RESPONSE_GENERATOR),
     });
-    return { response: text, modelUsed: "sonnet" };
+    return { response: text, modelUsed: AGENT_MODELS.RESPONSE_GENERATOR };
   } catch (error) {
-    logFallback(state.traceId, "response_generator", 1, String(error));
+    logFallback(state.traceId, AGENT_IDS.RESPONSE_GENERATOR, 1, String(error));
   }
 
   // Tier 2: Opus (crisis fallback - severity 4+)
   try {
     const { text } = await generateText({
-      model: anthropic("claude-opus-4-5"),
+      model: anthropic(AGENT_MODELS.CRISIS_ESCALATION),
       system: systemPrompt,
       prompt: state.userMessage,
-      maxTokens: 2000,
-      abortSignal: AbortSignal.timeout(3000),
+      maxTokens: 2000, // Extended budget for crisis responses
+      abortSignal: AbortSignal.timeout(TIMEOUTS.PIPELINE_TOTAL),
     });
-    return { response: text, modelUsed: "opus_fallback" };
+    return { response: text, modelUsed: AGENT_MODELS.CRISIS_ESCALATION };
   } catch (error) {
-    logFallback(state.traceId, "response_generator", 2, String(error));
+    logFallback(state.traceId, AGENT_IDS.RESPONSE_GENERATOR, 2, String(error));
   }
 
   // Tier 3: Template response
   const template = generateTemplateResponse(state);
-  logFallback(state.traceId, "response_generator", 3, "all_models_failed");
+  logFallback(state.traceId, AGENT_IDS.RESPONSE_GENERATOR, 3, "all_models_failed");
   return { response: template, modelUsed: "template_fallback" };
 }
 ```
@@ -158,6 +165,7 @@ export async function responseGeneratorWithFallback(
 // lib/resilience/timeouts.ts
 import { MolleiState } from "../pipeline/state";
 import { logTimeout } from "../server/monitoring";
+import { TIMEOUTS, FALLBACK_EMOTION } from "../utils/constants";
 
 type AgentFunction<T> = (state: MolleiState) => Promise<T>;
 type FallbackFunction<T> = (state: MolleiState) => T;
@@ -189,10 +197,10 @@ export function withTimeout<T>(
 
 // Usage example
 const neutralEmotionFallback = (state: MolleiState) => ({
-  userEmotion: { primary: "neutral", intensity: 0.5, valence: 0, signals: [] },
+  userEmotion: FALLBACK_EMOTION,
 });
 
-export const moodSensorWithTimeout = withTimeout(1000, neutralEmotionFallback);
+export const moodSensorWithTimeout = withTimeout(TIMEOUTS.MOOD_SENSOR, neutralEmotionFallback);
 ```
 
 ---

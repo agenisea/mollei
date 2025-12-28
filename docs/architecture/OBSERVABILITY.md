@@ -2,7 +2,11 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 ---
 
@@ -87,24 +91,19 @@ interface TraceEvent {
 ```typescript
 // lib/infrastructure/trace.ts
 import { randomUUID } from "crypto";
+import {
+  AGENT_IDS,
+  TRACE_SCOPE,
+  TRACE_EVENT_TYPE,
+  type TraceScope,
+  type TraceEventType,
+} from "../utils/constants";
 
 // ─────────────────────────────────────────────────────────────
-// Types
+// Types (re-exported from constants for convenience)
 // ─────────────────────────────────────────────────────────────
 
-export type TraceScope = "TURN" | "AGENT" | "LLM" | "SAFETY" | "MEMORY" | "EMOTION";
-
-export type TraceEventType =
-  | "run_start"
-  | "run_end"
-  | "stage"
-  | "retry"
-  | "error"
-  | "metric"
-  | "llm_call"
-  | "crisis_detected"
-  | "emotion_shift"
-  | "memory_callback";
+export { TRACE_SCOPE, TRACE_EVENT_TYPE, type TraceScope, type TraceEventType };
 
 export interface TraceEvent {
   traceId: string;
@@ -142,8 +141,8 @@ export function emitTrace(event: TraceEvent): void {
   }
 }
 
-export function createTraceId(scope: string = "turn"): string {
-  return `mollei_${scope}_${randomUUID().slice(0, 12)}`;
+export function createTraceId(scope: TraceScope = TRACE_SCOPE.TURN): string {
+  return `mollei_${scope.toLowerCase()}_${randomUUID().slice(0, 12)}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -157,8 +156,8 @@ export function traceTurnStart(
 ): void {
   emitTrace({
     traceId,
-    scope: "TURN",
-    eventType: "run_start",
+    scope: TRACE_SCOPE.TURN,
+    eventType: TRACE_EVENT_TYPE.RUN_START,
     agentId: null,
     timestamp: Date.now(),
     durationMs: null,
@@ -172,8 +171,8 @@ export function traceTurnEnd(
 ): void {
   emitTrace({
     traceId,
-    scope: "TURN",
-    eventType: "run_end",
+    scope: TRACE_SCOPE.TURN,
+    eventType: TRACE_EVENT_TYPE.RUN_END,
     agentId: null,
     timestamp: Date.now(),
     durationMs: null,
@@ -190,8 +189,8 @@ export function traceAgentStage(
 ): void {
   emitTrace({
     traceId,
-    scope: "AGENT",
-    eventType: "stage",
+    scope: TRACE_SCOPE.AGENT,
+    eventType: TRACE_EVENT_TYPE.STAGE,
     agentId,
     timestamp: Date.now(),
     durationMs,
@@ -210,8 +209,8 @@ export function traceLlmCall(
 ): void {
   emitTrace({
     traceId,
-    scope: "LLM",
-    eventType: "llm_call",
+    scope: TRACE_SCOPE.LLM,
+    eventType: TRACE_EVENT_TYPE.LLM_CALL,
     agentId,
     timestamp: Date.now(),
     durationMs,
@@ -232,9 +231,9 @@ export function traceCrisisDetected(
 ): void {
   emitTrace({
     traceId,
-    scope: "SAFETY",
-    eventType: "crisis_detected",
-    agentId: "safety_monitor",
+    scope: TRACE_SCOPE.SAFETY,
+    eventType: TRACE_EVENT_TYPE.CRISIS_DETECTED,
+    agentId: AGENT_IDS.SAFETY_MONITOR,
     timestamp: Date.now(),
     durationMs: null,
     metadata: {
@@ -252,8 +251,8 @@ export function traceError(
 ): void {
   emitTrace({
     traceId,
-    scope: "AGENT",
-    eventType: "error",
+    scope: TRACE_SCOPE.AGENT,
+    eventType: TRACE_EVENT_TYPE.ERROR,
     agentId,
     timestamp: Date.now(),
     durationMs: null,
@@ -803,16 +802,19 @@ TRACE_PROJECT=mollei
 ```typescript
 // lib/infrastructure/cost-aggregator.ts
 import { TraceHandler, TraceEvent } from "./trace";
+import { MODELS, MODEL_PRICING } from "../ai/models";
 
 // ─────────────────────────────────────────────────────────────
 // Claude Pricing (per million tokens, as of Dec 2025)
+// Uses MODEL_PRICING from lib/ai/models.ts for consistency
 // ─────────────────────────────────────────────────────────────
 
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-opus-4-5": { input: 5.0, output: 25.0 },
-  "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
-  "claude-haiku-4-5": { input: 1.0, output: 5.0 },
-};
+// MODEL_PRICING is imported from ../ai/models.ts:
+// {
+//   [MODELS.OPUS]: { input: 5.0, output: 25.0 },
+//   [MODELS.SONNET]: { input: 3.0, output: 15.0 },
+//   [MODELS.HAIKU]: { input: 1.0, output: 5.0 },
+// }
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -934,7 +936,7 @@ export function calculateCost(
   inputTokens: number,
   outputTokens: number
 ): number {
-  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING["claude-sonnet-4-5"];
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING[MODELS.SONNET];
   const inputCost = (inputTokens / 1_000_000) * pricing.input;
   const outputCost = (outputTokens / 1_000_000) * pricing.output;
   return inputCost + outputCost;
@@ -1311,6 +1313,7 @@ export function isValidTraceId(value: string): value is TraceId {
 ```typescript
 // lib/infrastructure/trace-coherency.ts
 import { TraceId, emitTrace } from "./trace";
+import { AGENT_IDS } from "../utils/constants";
 
 export type CoherencyDimension =
   | "emotion"        // Emotional consistency
@@ -1341,9 +1344,9 @@ export function traceEmotionCoherency(
 ): void {
   emitTrace({
     traceId,
-    scope: "EMOTION",
-    eventType: "coherency",
-    agentId: "emotion_reasoner",
+    scope: TRACE_SCOPE.EMOTION,
+    eventType: TRACE_EVENT_TYPE.COHERENCY,
+    agentId: AGENT_IDS.EMOTION_REASONER,
     timestamp: Date.now(),
     durationMs: null,
     metadata: {
@@ -1359,9 +1362,9 @@ export function tracePersonalityCoherency(
 ): void {
   emitTrace({
     traceId,
-    scope: "AGENT",
-    eventType: "coherency",
-    agentId: "response_generator",
+    scope: TRACE_SCOPE.AGENT,
+    eventType: TRACE_EVENT_TYPE.COHERENCY,
+    agentId: AGENT_IDS.RESPONSE_GENERATOR,
     timestamp: Date.now(),
     durationMs: null,
     metadata: {
@@ -1523,6 +1526,7 @@ export function createLLMLimiterContext(
 import { TraceId, createTraceId } from "../infrastructure/trace-id";
 import { TokenBudgetTracker } from "../infrastructure/token-budget";
 import { LLMLimiterContext, createLLMLimiterContext } from "../infrastructure/llm-limiter";
+import { TRACE_SCOPE } from "../utils/constants";
 
 /**
  * Per-request pipeline context
@@ -1558,7 +1562,7 @@ export function createPipelineContext(params: {
   onProgress?: (phase: string, data?: unknown) => void;
 }): PipelineContext {
   return {
-    traceId: createTraceId("TURN"),
+    traceId: createTraceId(TRACE_SCOPE.TURN),
     sessionId: params.sessionId,
     userId: params.userId,
     turnNumber: params.turnNumber,
@@ -2204,6 +2208,7 @@ CREATE INDEX idx_sessions_user_valence ON sessions(user_id, created_at, end_emot
 ```typescript
 // lib/tracing/north-star-events.ts
 import { traceEvent } from "./handlers";
+import { TRACE_EVENT_TYPE } from "../utils/constants";
 
 export function traceETICalculation(
   traceId: string,
@@ -2212,7 +2217,7 @@ export function traceETICalculation(
 ): void {
   traceEvent({
     traceId,
-    eventType: "eti_calculation",
+    eventType: TRACE_EVENT_TYPE.ETI_CALCULATION,
     payload: {
       userId,
       hasImprovement: result.hasImprovement,
@@ -2229,7 +2234,7 @@ export function traceWRUETISnapshot(
 ): void {
   traceEvent({
     traceId: `mollei_metrics_${Date.now()}`,
-    eventType: "wru_eti_weekly",
+    eventType: TRACE_EVENT_TYPE.WRU_ETI_WEEKLY,
     payload: {
       wruEtiRate: metrics.wruEtiRate,
       totalActiveUsers: metrics.totalActiveUsers,

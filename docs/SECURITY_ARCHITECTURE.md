@@ -1,9 +1,13 @@
 # MOLLEI: Security Architecture
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
 > **Status**: v1.0 Design
 > **Scope**: Authentication, Authorization, Data Protection, Safety
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](architecture/IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 *Security architecture for emotionally intelligent multi-agent AI*
 
@@ -202,6 +206,7 @@ This security blueprint addresses the **OWASP Top 10 for Agentic Applications (2
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { AUTH_EXPIRY } from '../utils/constants';
 
 // Configure ed25519 to use sha512
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -211,9 +216,7 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface AgentCredential {
-  agentId: string;                    // e.g., "perception.mood_sensor"
-  cluster: string;                    // e.g., "perception"
-  role: string;                       // e.g., "sensor"
+  agentId: AgentId;                   // e.g., AGENT_IDS.MOOD_SENSOR
   privateKey: Uint8Array;             // Ed25519 private key
   publicKey: Uint8Array;              // Ed25519 public key
   capabilities: string[];             // e.g., ["read:user_input", "write:emotion_state"]
@@ -279,7 +282,7 @@ class AgentAuthenticator {
       agentId,
       sessionId,
       issuedAt: now,
-      expiresAt: now + 300_000,  // 5 minutes in milliseconds
+      expiresAt: now + AUTH_EXPIRY.AGENT_TICKET_MS,
       capabilities: agent.capabilities,
       signature: new Uint8Array(0),  // Will be signed
     };
@@ -324,39 +327,48 @@ class AgentAuthenticator {
 // Agent Capability Definitions
 // ═══════════════════════════════════════════════════════════════════════════
 
-const AGENT_CAPABILITIES: Record<string, string[]> = {
-  "gateway.input_parser": [
+import { AGENT_IDS, AgentId, GATEWAY_IDS, PipelineNodeId } from '../utils/constants';
+
+/**
+ * Agent capabilities define what each agent can read, write, and execute.
+ * Uses AGENT_IDS and GATEWAY_IDS from lib/utils/constants.ts as the single source of truth.
+ */
+const AGENT_CAPABILITIES: Record<PipelineNodeId, string[]> = {
+  // Security gateway (input validation stage, not a full agent)
+  [GATEWAY_IDS.INPUT_PARSER]: [
     "read:user_input",
     "write:parsed_input",
   ],
-  "perception.mood_sensor": [
+  // Phase 1 agents (parallel execution)
+  [AGENT_IDS.MOOD_SENSOR]: [
     "read:parsed_input",
     "read:session_metadata",
     "write:user_emotion",
   ],
-  "cognition.emotion_reasoner": [
-    "read:user_emotion",
-    "read:appraisal",
-    "read:mollei_state",
-    "write:mollei_emotion",
-  ],
-  "cognition.memory_agent": [
+  [AGENT_IDS.MEMORY_AGENT]: [
     "read:session_context",
     "read:memory_store",
     "write:memory_store",
     "delete:memory_store",  // With constraints
   ],
-  "action.response_generator": [
-    "read:mollei_emotion",
-    "read:memories",
-    "read:strategy",
-    "write:response_draft",
-  ],
-  "governance.safety_monitor": [
+  [AGENT_IDS.SAFETY_MONITOR]: [
     "read:*",  // Can read all for safety checks
     "write:safety_decision",
     "execute:block_response",
     "execute:escalate",
+  ],
+  // Phase 2 agents (sequential execution)
+  [AGENT_IDS.EMOTION_REASONER]: [
+    "read:user_emotion",
+    "read:appraisal",
+    "read:mollei_state",
+    "write:mollei_emotion",
+  ],
+  [AGENT_IDS.RESPONSE_GENERATOR]: [
+    "read:mollei_emotion",
+    "read:memories",
+    "read:strategy",
+    "write:response_draft",
   ],
 } as const;
 
@@ -409,6 +421,8 @@ Mollei uses **Clerk** as the authentication provider. Clerk handles:
 ```
 
 ```typescript
+import { RATE_LIMITS } from '../utils/constants';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -489,14 +503,18 @@ async function createAuthenticatedSupabaseClient(): Promise<SupabaseClient> {
  * Operators deploying Mollei set these based on their LLM API budget.
  * These are infrastructure settings, not pricing tiers.
  *
- * Environment variables:
- *   RATE_LIMIT_REQUESTS_PER_MINUTE (default: 60)
- *   RATE_LIMIT_TOKENS_PER_DAY (default: 100000)
+ * Environment variables override constants defined in lib/utils/constants.ts
  */
 function getRateLimits(): RateLimitConfig {
   return {
-    requestsPerMinute: parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE ?? '60', 10),
-    tokensPerDay: parseInt(process.env.RATE_LIMIT_TOKENS_PER_DAY ?? '100000', 10),
+    requestsPerMinute: parseInt(
+      process.env.RATE_LIMIT_REQUESTS_PER_MINUTE ?? String(RATE_LIMITS.REQUESTS_PER_MINUTE),
+      10
+    ),
+    tokensPerDay: parseInt(
+      process.env.RATE_LIMIT_TOKENS_PER_DAY ?? String(RATE_LIMITS.TOKENS_PER_DAY),
+      10
+    ),
   };
 }
 
@@ -882,20 +900,18 @@ async function createNeonClient() {
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Mollei AUTHORIZATION MATRIX                             │
+│                     (Uses AGENT_IDS from constants)                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  RESOURCES →                                                                │
-│  AGENTS ↓        user_input  emotion_state  memory  response  governance    │
+│  AGENTS ↓           user_input  emotion_state  memory  response  safety     │
 │  ───────────────────────────────────────────────────────────────────────    │
-│  gateway.*         READ         -            -        -          -          │
-│  perception.*      READ        WRITE         -        -          -          │
-│  cognition.em_rsn  READ        READ/WRITE    -        -          -          │
-│  cognition.mem     -           READ         R/W/D     -          -          │
-│  cognition.strat   -           READ         READ      -          -          │
-│  action.resp       -           READ         READ     WRITE       -          │
-│  action.proactive  -           READ         READ     WRITE       -          │
-│  action.escalate   -           READ         READ     WRITE      READ        │
-│  governance.*      READ        READ         READ     R/W/BLK   READ/WRITE   │
+│  input_parser         READ         -            -        -          -       │
+│  mood_sensor          READ        WRITE         -        -          -       │
+│  memory_agent          -           READ       R/W/D      -          -       │
+│  safety_monitor       READ         READ        READ      -       R/W/BLK    │
+│  emotion_reasoner     READ       READ/WRITE     -        -          -       │
+│  response_generator    -           READ        READ    WRITE        -       │
 │                                                                             │
 │  LEGEND:                                                                    │
 │  READ = Read access                                                         │
@@ -1036,41 +1052,45 @@ class AuthorizationPolicy {
 // Agent Capability Sets
 // ═══════════════════════════════════════════════════════════════════════════
 
-const AGENT_CAPABILITY_SETS: Record<string, Set<Capability>> = {
-  'gateway.input_parser': new Set([Capability.READ_USER_INPUT]),
+const AGENT_CAPABILITY_SETS: Record<PipelineNodeId, Set<Capability>> = {
+  // Security gateway
+  [GATEWAY_IDS.INPUT_PARSER]: new Set([Capability.READ_USER_INPUT]),
 
-  'perception.mood_sensor': new Set([
+  // Phase 1 agents
+  [AGENT_IDS.MOOD_SENSOR]: new Set([
     Capability.READ_USER_INPUT,
     Capability.READ_SESSION_METADATA,
     Capability.WRITE_USER_EMOTION,
   ]),
 
-  'cognition.emotion_reasoner': new Set([
-    Capability.READ_USER_EMOTION,
-    Capability.READ_MOLLEI_EMOTION,
-    Capability.WRITE_MOLLEI_EMOTION,
-  ]),
-
-  'cognition.memory_agent': new Set([
+  [AGENT_IDS.MEMORY_AGENT]: new Set([
     Capability.READ_SHORT_TERM_MEMORY,
     Capability.READ_LONG_TERM_MEMORY,
     Capability.WRITE_LONG_TERM_MEMORY,
     Capability.DELETE_MEMORY, // With constraints
   ]),
 
-  'action.response_generator': new Set([
-    Capability.READ_MOLLEI_EMOTION,
-    Capability.READ_LONG_TERM_MEMORY,
-    Capability.WRITE_RESPONSE_DRAFT,
-  ]),
-
-  'governance.safety_monitor': new Set([
+  [AGENT_IDS.SAFETY_MONITOR]: new Set([
     Capability.READ_ALL_STATE,
     Capability.BLOCK_RESPONSE,
     Capability.ESCALATE_TO_HUMAN,
   ]),
 
-  'governance.privacy_sentinel': new Set([
+  // Phase 2 agents
+  [AGENT_IDS.EMOTION_REASONER]: new Set([
+    Capability.READ_USER_EMOTION,
+    Capability.READ_MOLLEI_EMOTION,
+    Capability.WRITE_MOLLEI_EMOTION,
+  ]),
+
+  [AGENT_IDS.RESPONSE_GENERATOR]: new Set([
+    Capability.READ_MOLLEI_EMOTION,
+    Capability.READ_LONG_TERM_MEMORY,
+    Capability.WRITE_RESPONSE_DRAFT,
+  ]),
+
+  // Security-layer sentinel (future Phase 2+)
+  [GATEWAY_IDS.PRIVACY_SENTINEL]: new Set([
     Capability.READ_ALL_STATE,
     Capability.DELETE_MEMORY,
     Capability.REVOKE_SESSION,
@@ -1165,7 +1185,7 @@ class JITPrivilegeManager {
     // Memory deletion by memory agent with consent
     if (
       capability === Capability.DELETE_MEMORY &&
-      agentId === 'cognition.memory_agent' &&
+      agentId === AGENT_IDS.MEMORY_AGENT &&
       context.userRequestedDeletion
     ) {
       return true;
@@ -1174,7 +1194,7 @@ class JITPrivilegeManager {
     // Escalation by safety monitor during crisis
     if (
       capability === Capability.ESCALATE_TO_HUMAN &&
-      agentId === 'governance.safety_monitor' &&
+      agentId === AGENT_IDS.SAFETY_MONITOR &&
       (context.crisisScore ?? 0) > 0.9
     ) {
       return true;
@@ -1483,6 +1503,8 @@ export {
 ### 4.3 Real-Time Anomaly Detection
 
 ```typescript
+import { ANOMALY_BASELINE } from '../utils/constants';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1561,7 +1583,7 @@ class SessionPattern {
   emotionHistory: CircularBuffer<EmotionState>;
   memoryAccesses: CircularBuffer<number>;
 
-  constructor(sessionId: string, maxLen: number = 100) {
+  constructor(sessionId: string, maxLen: number = ANOMALY_BASELINE.BASELINE_WINDOW) {
     this.sessionId = sessionId;
     this.tokenUsages = new CircularBuffer(maxLen);
     this.emotionHistory = new CircularBuffer(maxLen);
@@ -1570,12 +1592,12 @@ class SessionPattern {
 
   get tokenUsageMean(): number {
     const arr = this.tokenUsages.toArray();
-    return arr.length > 0 ? mean(arr) : 1000;
+    return arr.length > 0 ? mean(arr) : ANOMALY_BASELINE.LATENCY_MS;
   }
 
   get tokenUsageStd(): number {
     const arr = this.tokenUsages.toArray();
-    return arr.length > 1 ? stdev(arr) : 500;
+    return arr.length > 1 ? stdev(arr) : ANOMALY_BASELINE.LATENCY_STDEV_MS;
   }
 
   get memoryAccessMean(): number {
@@ -1610,7 +1632,7 @@ class BehavioralAnomalyDetector {
   private baselineWindow: number;
   private sessionPatterns: Map<string, SessionPattern>;
 
-  constructor(baselineWindow: number = 100) {
+  constructor(baselineWindow: number = ANOMALY_BASELINE.BASELINE_WINDOW) {
     this.baselineWindow = baselineWindow;
     this.sessionPatterns = new Map();
   }
@@ -1987,6 +2009,7 @@ export {
 
 ```typescript
 import { createHash, createHmac, randomBytes } from 'crypto';
+import { SANITIZATION } from '../utils/constants';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -2104,8 +2127,8 @@ class SecureMemoryStore {
     sanitized = sanitized.replace(/<\|.*?\|>/g, '');
 
     // Limit length
-    if (sanitized.length > 1000) {
-      sanitized = sanitized.slice(0, 1000) + '...';
+    if (sanitized.length > SANITIZATION.MAX_CONTENT_LENGTH) {
+      sanitized = sanitized.slice(0, SANITIZATION.MAX_CONTENT_LENGTH) + SANITIZATION.TRUNCATION_SUFFIX;
     }
 
     return sanitized;
@@ -2345,17 +2368,31 @@ class SecureAgentBus {
 // Agent Communication Graph
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Defines allowed agent-to-agent communication paths.
+ * Uses AGENT_IDS for the 5-agent MVP. Future extensions can be added.
+ *
+ * MVP Pipeline Flow:
+ *   INPUT_PARSER → [MOOD_SENSOR, MEMORY_AGENT, SAFETY_MONITOR] (Phase 1 parallel)
+ *   Phase 1 outputs → EMOTION_REASONER (Phase 2)
+ *   EMOTION_REASONER → RESPONSE_GENERATOR (Phase 2)
+ *   RESPONSE_GENERATOR → SAFETY_MONITOR (final check)
+ */
 const AGENT_COMMUNICATION_GRAPH = new Map<string, Set<string>>([
-  ['gateway.input_parser', new Set(['perception.mood_sensor', 'perception.appraisal_engine', 'perception.context_detector'])],
-  ['perception.mood_sensor', new Set(['cognition.emotion_reasoner'])],
-  ['perception.appraisal_engine', new Set(['cognition.emotion_reasoner', 'cognition.memory_agent'])],
-  ['perception.context_detector', new Set(['cognition.emotion_reasoner'])],
-  ['cognition.emotion_reasoner', new Set(['cognition.memory_agent', 'action.response_generator'])],
-  ['cognition.memory_agent', new Set(['action.response_generator'])],
-  ['cognition.strategy_agent', new Set(['action.response_generator'])],
-  ['action.response_generator', new Set(['governance.safety_monitor', 'governance.personality_anchor'])],
-  ['governance.safety_monitor', new Set(['action.escalation_agent', 'action.response_generator'])],
-  ['governance.personality_anchor', new Set(['action.response_generator'])],
+  // Input validation feeds Phase 1 agents
+  [GATEWAY_IDS.INPUT_PARSER, new Set([
+    AGENT_IDS.MOOD_SENSOR,
+    AGENT_IDS.MEMORY_AGENT,
+    AGENT_IDS.SAFETY_MONITOR,
+  ])],
+  // Phase 1 agents feed Phase 2
+  [AGENT_IDS.MOOD_SENSOR, new Set([AGENT_IDS.EMOTION_REASONER])],
+  [AGENT_IDS.MEMORY_AGENT, new Set([AGENT_IDS.EMOTION_REASONER, AGENT_IDS.RESPONSE_GENERATOR])],
+  [AGENT_IDS.SAFETY_MONITOR, new Set([AGENT_IDS.EMOTION_REASONER, AGENT_IDS.RESPONSE_GENERATOR])],
+  // Phase 2 sequential flow
+  [AGENT_IDS.EMOTION_REASONER, new Set([AGENT_IDS.RESPONSE_GENERATOR])],
+  // Response generator can be blocked by safety monitor
+  [AGENT_IDS.RESPONSE_GENERATOR, new Set([AGENT_IDS.SAFETY_MONITOR])],
 ]);
 
 // Inverse graph for receive authorization
@@ -2430,11 +2467,21 @@ export {
 
 ```typescript
 import { randomBytes } from 'crypto';
+import {
+  SANITIZATION,
+  CRISIS_SEVERITY,
+  SIGNAL_TYPES,
+  AGENT_IDS,
+} from '../utils/constants';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Escalation Types
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Escalation urgency levels for human escalation protocol.
+ * @see CRISIS_SEVERITY in IMPLEMENTATION_SCAFFOLD.md for agent-level severity
+ */
 const EscalationUrgency = {
   CRITICAL: 'critical', // < 30 seconds
   HIGH: 'high', // < 5 minutes
@@ -2485,6 +2532,7 @@ interface EscalationContext {
 }
 
 interface CrisisResult {
+  /** @see SIGNAL_TYPES in lib/utils/constants.ts */
   category: 'suicidal' | 'self_harm' | 'violence' | 'none';
   confidence: number;
 }
@@ -2656,7 +2704,7 @@ class EscalationEngine {
 
   private prepareSafeMessage(context: EscalationContext): string {
     // Redact sensitive information while preserving context for human review
-    return context.rawInput.slice(0, 500);
+    return context.rawInput.slice(0, SANITIZATION.CONTEXT_PREVIEW_LENGTH);
   }
 
   registerHandler(type: EscalationType, handler: EscalationHandler): void {
@@ -2979,13 +3027,17 @@ class IncidentResponseHandler {
 // Kill Switch
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ALL_AGENT_IDS = [
-  'gateway.input_parser',
-  'perception.mood_sensor',
-  'cognition.emotion_reasoner',
-  'cognition.memory_agent',
-  'action.response_generator',
-  'governance.safety_monitor',
+/**
+ * All pipeline node IDs for kill switch operations.
+ * Uses AGENT_IDS + GATEWAY_IDS from lib/utils/constants.ts.
+ */
+const ALL_PIPELINE_NODE_IDS = [
+  GATEWAY_IDS.INPUT_PARSER,
+  AGENT_IDS.MOOD_SENSOR,
+  AGENT_IDS.MEMORY_AGENT,
+  AGENT_IDS.SAFETY_MONITOR,
+  AGENT_IDS.EMOTION_REASONER,
+  AGENT_IDS.RESPONSE_GENERATOR,
 ] as const;
 
 interface AgentManager {
@@ -3025,11 +3077,11 @@ class KillSwitch {
     }
   }
 
-  /** Emergency shutdown of all Mollei agents */
+  /** Emergency shutdown of all Mollei pipeline nodes */
   private async shutdownAllAgents(): Promise<void> {
-    for (const agentId of ALL_AGENT_IDS) {
+    for (const nodeId of ALL_PIPELINE_NODE_IDS) {
       try {
-        await this.agentManager.stop(agentId);
+        await this.agentManager.stop(nodeId);
       } catch {
         // Best effort - continue with other agents
       }
@@ -3044,7 +3096,7 @@ class KillSwitch {
   }
 
   private async disableMemoryAgent(): Promise<void> {
-    await this.agentManager.stop('cognition.memory_agent');
+    await this.agentManager.stop(AGENT_IDS.MEMORY_AGENT);
   }
 
   private async blockExternalApis(): Promise<void> {
@@ -3060,7 +3112,7 @@ export {
   IncidentResponseHandler,
   KillSwitch,
   KillSwitchScope,
-  ALL_AGENT_IDS,
+  ALL_PIPELINE_NODE_IDS,
   Playbook,
   PlaybookStep,
 };

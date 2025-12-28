@@ -2,7 +2,11 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 10:38PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 ---
 
@@ -405,7 +409,7 @@ export async function runMolleiPipeline(
     if (memoryResult) state = { ...state, ...memoryResult }
     if (safetyResult) state = { ...state, ...safetyResult }
 
-    stagesCompleted.push('mood_sensor', 'memory_agent', 'safety_monitor')
+    stagesCompleted.push(AGENT_IDS.MOOD_SENSOR, AGENT_IDS.MEMORY_AGENT, AGENT_IDS.SAFETY_MONITOR)
     traceStage(traceId, 'parallel_analysis', 'complete', Date.now() - startTime)
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -422,13 +426,13 @@ export async function runMolleiPipeline(
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2: SEQUENTIAL REASONING
     // ═══════════════════════════════════════════════════════════════════════
-    traceStage(traceId, 'emotion_reasoner', 'start')
+    traceStage(traceId, AGENT_IDS.EMOTION_REASONER, 'start')
 
     const emotionResult = await new EmotionReasonerModule().execute(state, context)
     state = { ...state, ...emotionResult }
-    stagesCompleted.push('emotion_reasoner')
+    stagesCompleted.push(AGENT_IDS.EMOTION_REASONER)
 
-    traceStage(traceId, 'emotion_reasoner', 'complete')
+    traceStage(traceId, AGENT_IDS.EMOTION_REASONER, 'complete')
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 3: CONDITIONAL RESPONSE (quality-gated crisis routing)
@@ -436,7 +440,7 @@ export async function runMolleiPipeline(
     const routeDecision = routeAfterSafetyMonitor(state)
     const isCrisis = routeDecision === 'crisis_response'
 
-    traceStage(traceId, isCrisis ? 'crisis_response' : 'response_generator', 'start')
+    traceStage(traceId, isCrisis ? 'crisis_response' : AGENT_IDS.RESPONSE_GENERATOR, 'start')
 
     if (isCrisis) {
       const crisisResult = await new CrisisResponseModule().execute(state, context)
@@ -444,13 +448,13 @@ export async function runMolleiPipeline(
       stagesCompleted.push('crisis_response')
     } else {
       state = await generateResponseWithRetry(state, context)
-      stagesCompleted.push('response_generator')
+      stagesCompleted.push(AGENT_IDS.RESPONSE_GENERATOR)
       if (state.responseAttempts > 0) {
         stagesCompleted.push(`response_retry_${state.responseAttempts}`)
       }
     }
 
-    traceStage(traceId, isCrisis ? 'crisis_response' : 'response_generator', 'complete')
+    traceStage(traceId, isCrisis ? 'crisis_response' : AGENT_IDS.RESPONSE_GENERATOR, 'complete')
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 4: MEMORY UPDATE (async, non-blocking for response delivery)
@@ -521,7 +525,7 @@ export function routeAfterSafetyMonitor(state: MolleiState): string {
   }
 
   // Clear non-crisis or max attempts reached
-  return 'emotion_reasoner'
+  return AGENT_IDS.EMOTION_REASONER
 }
 
 /**
@@ -764,7 +768,7 @@ export class ClaudeEmotionBackend implements EmotionBackend {
 
   async analyze(text: string): Promise<EmotionResult> {
     const response = await generateObject({
-      model: anthropic('claude-haiku-4-5'),
+      model: anthropic(AGENT_MODELS.MOOD_SENSOR),
       schema: EmotionResultSchema,
       prompt: buildEmotionPrompt(text),
     })
@@ -931,6 +935,8 @@ import { z } from "zod";
 import { MolleiState } from "../pipeline/state";
 import { PipelineContext } from "../pipeline/context";
 import { traceAgentStage } from "../infrastructure/trace";
+import { MODELS } from "../ai/models";
+import { TOKEN_BUDGETS } from "../utils/constants";
 
 const MAX_ITERATIONS = 3;
 
@@ -985,7 +991,7 @@ export async function runMakerCheckerLoop(
     const start = performance.now();
 
     const { object: validation, usage } = await generateObject({
-      model: anthropic("claude-haiku-4-5"),
+      model: anthropic(AGENT_MODELS.SAFETY_MONITOR),
       schema: ValidationSchema,
       system: SAFETY_VALIDATOR_PROMPT,
       prompt: JSON.stringify({
@@ -993,7 +999,7 @@ export async function runMakerCheckerLoop(
         userMessage: currentState.userMessage,
         proposedResponse: currentState.response,
       }),
-      maxTokens: 500,
+      maxTokens: TOKEN_BUDGETS.SAFETY_MONITOR,
     });
 
     ctx.budgetTracker.record(usage.totalTokens);
@@ -1205,6 +1211,7 @@ import { PipelineContext } from "./context";
 import { moodSensorNode } from "../agents/mood-sensor";
 import { memoryAgentNode } from "../agents/memory-agent";
 import { safetyMonitorNode } from "../agents/safety-monitor";
+import { AGENT_IDS } from "../utils/constants";
 
 interface ConcurrentResult {
   results: Partial<MolleiState>[];
@@ -1226,9 +1233,9 @@ export async function runConcurrentAgents(
   ctx: PipelineContext
 ): Promise<ConcurrentResult> {
   const agents = [
-    { name: "mood_sensor", fn: moodSensorNode },
-    { name: "memory_agent", fn: memoryAgentNode },
-    { name: "safety_monitor", fn: safetyMonitorNode },
+    { name: AGENT_IDS.MOOD_SENSOR, fn: moodSensorNode },
+    { name: AGENT_IDS.MEMORY_AGENT, fn: memoryAgentNode },
+    { name: AGENT_IDS.SAFETY_MONITOR, fn: safetyMonitorNode },
   ];
 
   const results: Partial<MolleiState>[] = [];
@@ -1296,6 +1303,7 @@ export function mergeConcurrentResults(
 
 ```typescript
 // lib/pipeline/context-management.ts
+import { AGENT_IDS, TOKEN_BUDGETS } from "../utils/constants";
 
 /**
  * Context management following Microsoft guidelines:
@@ -1312,19 +1320,19 @@ interface ContextPassingStrategy {
 
 const CONTEXT_STRATEGIES: ContextPassingStrategy[] = [
   // mood_sensor only needs current message
-  { agentId: "mood_sensor", strategy: "minimal", maxTokens: 500 },
+  { agentId: AGENT_IDS.MOOD_SENSOR, strategy: "minimal", maxTokens: TOKEN_BUDGETS.MOOD_SENSOR },
 
   // memory_agent needs session context
-  { agentId: "memory_agent", strategy: "summary", maxTokens: 2000 },
+  { agentId: AGENT_IDS.MEMORY_AGENT, strategy: "summary", maxTokens: TOKEN_BUDGETS.MEMORY_AGENT * 4 },
 
   // safety_monitor needs current message + recent turns
-  { agentId: "safety_monitor", strategy: "minimal", maxTokens: 800 },
+  { agentId: AGENT_IDS.SAFETY_MONITOR, strategy: "minimal", maxTokens: TOKEN_BUDGETS.SAFETY_MONITOR * 2 },
 
   // emotion_reasoner needs aggregated results
-  { agentId: "emotion_reasoner", strategy: "summary", maxTokens: 1500 },
+  { agentId: AGENT_IDS.EMOTION_REASONER, strategy: "summary", maxTokens: TOKEN_BUDGETS.EMOTION_REASONER * 3 },
 
   // response_generator needs full context
-  { agentId: "response_generator", strategy: "full", maxTokens: 4000 },
+  { agentId: AGENT_IDS.RESPONSE_GENERATOR, strategy: "full", maxTokens: TOKEN_BUDGETS.RESPONSE_GENERATOR * 4 },
 ];
 
 /**

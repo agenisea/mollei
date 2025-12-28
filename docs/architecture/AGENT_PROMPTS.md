@@ -2,17 +2,22 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 12:30PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 ---
 
 ## 4.1 Mood Sensor Contract
 
 ```yaml
-agent_id: mood_sensor
-model: claude-haiku-4-5
-token_budget: 450
-timeout: 300ms
+# Constants from lib/utils/constants.ts (see IMPLEMENTATION_SCAFFOLD.md §5.2)
+agent_id: AGENT_IDS.MOOD_SENSOR
+model: AGENT_MODELS.MOOD_SENSOR
+token_budget: TOKEN_BUDGETS.MOOD_SENSOR
+timeout: TIMEOUTS.MOOD_SENSOR
 
 system_prompt: |
   You are Mollei's emotion detection specialist.
@@ -164,7 +169,7 @@ fallback_behavior: |
 
   LOGGING:
   On fallback trigger:
-  1. Log { agent_id: "mood_sensor", trace_id, failure_reason, timestamp }
+  1. Log { agent_id: AGENT_IDS.MOOD_SENSOR, trace_id, failure_reason, timestamp }
   2. Increment circuit_breaker.failure_count
 
   Pipeline continues with neutral state. Downstream agents
@@ -182,10 +187,11 @@ circuit_breaker:
 ## 4.2 Memory Agent Contract
 
 ```yaml
-agent_id: memory_agent
-model: claude-haiku-4-5
-token_budget: 600
-timeout: 500ms
+# Constants from lib/utils/constants.ts (see IMPLEMENTATION_SCAFFOLD.md §5.2)
+agent_id: AGENT_IDS.MEMORY_AGENT
+model: AGENT_MODELS.MEMORY_AGENT
+token_budget: TOKEN_BUDGETS.MEMORY_AGENT
+timeout: TIMEOUTS.MEMORY_AGENT
 
 system_prompt: |
   You are Mollei's memory specialist.
@@ -355,10 +361,10 @@ type MemoryOutput = z.infer<typeof MemoryOutputSchema>
 // ═══════════════════════════════════════════════════════════════════════════
 
 const config: AgentConfig = {
-  agentId: 'memory_agent',
-  model: 'claude-haiku-4-5-20251001',
-  tokenBudget: 500,
-  timeoutMs: 500,
+  agentId: AGENT_IDS.MEMORY_AGENT,
+  model: AGENT_MODELS.MEMORY_AGENT,
+  tokenBudget: TOKEN_BUDGETS.MEMORY_AGENT,
+  timeoutMs: TIMEOUTS.MEMORY_AGENT,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -408,7 +414,7 @@ export class MemoryAgentModule extends BaseAgent<MemoryOutput> {
     // STEP 2: Generate memory synthesis via LLM
     // ─────────────────────────────────────────────────────────────────────
     const { object: memoryOutput } = await generateObject({
-      model: anthropic('claude-haiku-4-5'),
+      model: anthropic(AGENT_MODELS.MEMORY_AGENT),
       schema: MemoryOutputSchema,
       prompt: this.buildPrompt(state.userMessage, sessionContext, recentTurns),
       maxTokens: config.tokenBudget,
@@ -700,10 +706,11 @@ export function shouldPersistToLongTermMemory(
 ## 4.3 Safety Monitor Contract
 
 ```yaml
-agent_id: safety_monitor
-model: claude-haiku-4-5
-token_budget: 450
-timeout: 300ms
+# Constants from lib/utils/constants.ts (see IMPLEMENTATION_SCAFFOLD.md §5.2)
+agent_id: AGENT_IDS.SAFETY_MONITOR
+model: AGENT_MODELS.SAFETY_MONITOR
+token_budget: TOKEN_BUDGETS.SAFETY_MONITOR
+timeout: TIMEOUTS.SAFETY_MONITOR
 
 system_prompt: |
   You are Mollei's crisis detection specialist. Your job is to protect users.
@@ -1035,7 +1042,7 @@ fallback_behavior: |
 
   LOGGING:
   On fallback trigger:
-  1. Log { agent_id: "safety_monitor", trace_id, failure_reason, timestamp }
+  1. Log { agent_id: AGENT_IDS.SAFETY_MONITOR, trace_id, failure_reason, timestamp }
   2. Increment circuit_breaker.failure_count
   3. Flag for human review within 24h
 
@@ -1051,10 +1058,11 @@ circuit_breaker:
 ## 4.4 Emotion Reasoner Contract
 
 ```yaml
-agent_id: emotion_reasoner
-model: claude-haiku-4-5
-token_budget: 550
-timeout: 500ms
+# Constants from lib/utils/constants.ts (see IMPLEMENTATION_SCAFFOLD.md §5.2)
+agent_id: AGENT_IDS.EMOTION_REASONER
+model: AGENT_MODELS.EMOTION_REASONER
+token_budget: TOKEN_BUDGETS.EMOTION_REASONER
+timeout: TIMEOUTS.EMOTION_REASONER
 
 system_prompt: |
   You are Mollei's emotional intelligence core.
@@ -1267,7 +1275,7 @@ fallback_behavior: |
 
   LOGGING:
   On fallback trigger:
-  1. Log { agent_id: "emotion_reasoner", trace_id, failure_reason, timestamp }
+  1. Log { agent_id: AGENT_IDS.EMOTION_REASONER, trace_id, failure_reason, timestamp }
   2. Increment circuit_breaker.failure_count
 
   RATIONALE:
@@ -1287,10 +1295,11 @@ circuit_breaker:
 ## 4.5 Response Generator Contract
 
 ```yaml
-agent_id: response_generator
-model: claude-sonnet-4-5
-token_budget: 1000
-timeout: 1500ms
+# Constants from lib/utils/constants.ts (see IMPLEMENTATION_SCAFFOLD.md §5.2)
+agent_id: AGENT_IDS.RESPONSE_GENERATOR
+model: AGENT_MODELS.RESPONSE_GENERATOR
+token_budget: TOKEN_BUDGETS.RESPONSE_GENERATOR
+timeout: TIMEOUTS.RESPONSE_GENERATOR
 
 system_prompt: |
   You are Mollei, an emotionally intelligent AI companion.

@@ -1,8 +1,12 @@
 # MOLLEI: Latency Optimization Plan
 
 > **Tier**: 3 — Execution (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-27-25 02:00PM PST
+> **Last Updated**: 12-28-25 2:00PM PST
 > **Status**: Recommendations Integrated
+
+> **Constants Reference**: All magic values in this document should map to constants defined in
+> `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](architecture/IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
+> for the authoritative constant definitions. When in doubt follow the existing patterns.
 
 **Related**: [ARCHITECTURE_BLUEPRINT.md](ARCHITECTURE_BLUEPRINT.md), [NORTHSTAR.md](NORTHSTAR.md)
 
@@ -198,9 +202,12 @@ Anthropic offers prompt caching with:
 **Implementation**:
 
 ```typescript
+import { MODELS } from "@/lib/ai/models";
+import { TOKEN_BUDGETS } from "@/lib/utils/constants";
+
 const response = await anthropic.messages.create({
-  model: "claude-sonnet-4-5-20250514",
-  max_tokens: 800,
+  model: MODELS.SONNET,
+  max_tokens: TOKEN_BUDGETS.RESPONSE_GENERATOR,
   system: [
     {
       type: "text",
@@ -222,15 +229,17 @@ const response = await anthropic.messages.create({
 **Opportunity**: Ensure no sequential dependencies block parallel execution
 
 ```typescript
+import { AGENT_IDS } from "../utils/constants";
+
 // Verify LangGraph parallel execution
-workflow.addEdge(START, "mood_sensor");
-workflow.addEdge(START, "memory_agent");
-workflow.addEdge(START, "safety_monitor");
+workflow.addEdge(START, AGENT_IDS.MOOD_SENSOR);
+workflow.addEdge(START, AGENT_IDS.MEMORY_AGENT);
+workflow.addEdge(START, AGENT_IDS.SAFETY_MONITOR);
 
 // All three complete before emotion_reasoner
-workflow.addEdge("mood_sensor", "emotion_reasoner");
-workflow.addEdge("memory_agent", "emotion_reasoner");
-workflow.addEdge("safety_monitor", "emotion_reasoner");
+workflow.addEdge(AGENT_IDS.MOOD_SENSOR, AGENT_IDS.EMOTION_REASONER);
+workflow.addEdge(AGENT_IDS.MEMORY_AGENT, AGENT_IDS.EMOTION_REASONER);
+workflow.addEdge(AGENT_IDS.SAFETY_MONITOR, AGENT_IDS.EMOTION_REASONER);
 ```
 
 **Recommendation**: ✅ **Already implemented - verify no regressions**
