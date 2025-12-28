@@ -24,6 +24,8 @@ We think there's a different way.
 
 Mollei is an open source project asking: **Can AI understand emotion without exploiting it?**
 
+We're exploring AI that's there at 2am when friends are asleep — that helps you apply what you learn in therapy, remembers your story, and helps you see patterns.
+
 We believe emotionally intelligent AI should:
 
 - **Measure feeling better, not time spent** — Success means you needed us less over time
