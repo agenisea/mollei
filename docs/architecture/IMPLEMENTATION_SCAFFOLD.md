@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 3:00PM PST
+> **Last Updated**: 12-28-25 8:30PM PST
 
 ---
 
@@ -899,15 +899,25 @@ export async function POST(request: NextRequest) {
 
 ### Streaming Chat Endpoint (SSE)
 
+> **Full SSE Documentation**: See [SSE_STREAMING.md](SSE_STREAMING.md) for complete implementation details, client integration, and resilience patterns.
+
+Uses [`sse-kit`](https://github.com/agenisea/sse-kit) for SSE streaming with heartbeat, abort signals, and observability hooks.
+
 ```typescript
 // app/api/chat/stream/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { createStreamingResponse, createSSEResponse } from "sse-kit/server";
+import type { StreamObserver } from "sse-kit/server";
 import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
-import { createTraceId, createPipelineContext } from "@/lib/infrastructure/trace";
+import { createPipelineContext } from "@/lib/pipeline/context";
+import { createTraceId } from "@/lib/infrastructure/trace";
+import { traceStreamEvent } from "@/lib/infrastructure/trace-stream";
+import { createSSEProgressAdapter } from "@/lib/streaming/sse-progress-adapter";
 import { getTurnNumber } from "@/lib/db/repositories/session";
 import { TRACE_SCOPE } from "@/lib/utils/constants";
+import type { MolleiSSEUpdate } from "@/lib/streaming/sse-events";
 
 const ChatRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
@@ -926,62 +936,81 @@ export async function POST(request: NextRequest) {
   const { userId, message, sessionId: requestSessionId } = parsed.data;
   const sessionId = requestSessionId ?? randomUUID();
   const turnNumber = await getTurnNumber(sessionId);
-  const traceId = createTraceId(TRACE_SCOPE.TURN);
+  const traceId = createTraceId(TRACE_SCOPE.STREAM);
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // Create pipeline context with progress callback for streaming
-        const ctx = createPipelineContext({
-          traceId,
+  // Observability hooks for OpenTelemetry integration
+  const observer: StreamObserver = {
+    onStreamStart: () => {
+      traceStreamEvent(traceId, "stream_start", { sessionId, turnNumber });
+    },
+    onStreamEnd: (durationMs, success, error) => {
+      traceStreamEvent(traceId, "stream_end", { durationMs, success, error: error?.message });
+    },
+    onUpdateSent: (phase, bytesSent) => {
+      traceStreamEvent(traceId, "update_sent", { phase, bytesSent });
+    },
+    onAbort: (reason) => {
+      traceStreamEvent(traceId, "stream_abort", { reason });
+    },
+  };
+
+  // Create streaming response with sse-kit
+  const { stream, orchestrator } = createStreamingResponse<MolleiSSEUpdate>({
+    signal: request.signal, // Auto-abort on client disconnect
+    heartbeat: { intervalMs: 5000 },
+    observer,
+  });
+
+  // Start heartbeat to keep connection alive
+  orchestrator.startHeartbeat();
+
+  // Create adapter that bridges SSE orchestrator to abstract interface (DIP)
+  const progressReporter = createSSEProgressAdapter(orchestrator);
+
+  // Execute pipeline in background (non-blocking)
+  ;(async () => {
+    try {
+      // Create pipeline context with abstract progress reporter (not concrete orchestrator)
+      const ctx = createPipelineContext({
+        traceId,
+        sessionId,
+        userId,
+        turnNumber,
+        progressReporter,  // ✅ Interface injection, not concrete type
+      });
+
+      const initialInput = {
+        sessionId,
+        userId,
+        userMessage: message,
+        turnNumber,
+        traceId,
+        latencyMs: {},
+        agentErrors: [],
+      };
+
+      // Execute pipeline with progress streaming (framework-agnostic)
+      const pipeline = getMolleiPipeline();
+      const result = await runSequentialPipeline(pipeline, initialInput, ctx);
+
+      // Send final result
+      if (!orchestrator.aborted) {
+        await orchestrator.sendResult({
           sessionId,
-          userId,
+          response: result.output.response,
           turnNumber,
-          // Stream progress events to client
-          onProgress: (phase, data) => {
-            const event = {
-              type: "agent_complete",
-              agent: phase,
-              data: phase === AGENT_IDS.RESPONSE_GENERATOR ? data : undefined,
-            };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-          },
+          crisisDetected: result.output.crisisDetected,
         });
-
-        const initialInput = {
-          sessionId,
-          userId,
-          userMessage: message,
-          turnNumber,
-          traceId,
-          latencyMs: {},
-          agentErrors: [],
-        };
-
-        // Execute pipeline with progress streaming (framework-agnostic)
-        const pipeline = getMolleiPipeline();
-        await runSequentialPipeline(pipeline, initialInput, ctx);
-
-        // Send completion
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
-        controller.close();
-      } catch (error) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Internal error" })}\n\n`)
-        );
-        controller.close();
       }
-    },
-  });
+    } catch (error) {
+      if (orchestrator.aborted) return; // Client disconnected
+      await orchestrator.sendError(error instanceof Error ? error.message : "Internal error");
+    } finally {
+      await orchestrator.close();
+    }
+  })();
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return createSSEResponse(stream);
 }
 ```
 

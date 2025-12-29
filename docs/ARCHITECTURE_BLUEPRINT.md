@@ -1,7 +1,7 @@
 # MOLLEI: Multi-Agent Architecture Blueprint
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-28-25 8:30PM PST
 > **Status**: Open Source
 > **Modularized**: This document has been split into focused modules in `docs/architecture/`
 
@@ -32,6 +32,7 @@ Detailed implementation specifications are in `docs/architecture/`:
 | [RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | Circuit breakers, fallback chains, timeout handling, idempotency |
 | [AGENT_PROMPTS.md](architecture/AGENT_PROMPTS.md) | System prompts for all 5 agents with JTBD and few-shot examples |
 | [IMPLEMENTATION_SCAFFOLD.md](architecture/IMPLEMENTATION_SCAFFOLD.md) | Next.js structure, BaseAgent class, agent implementations, API routes |
+| [SSE_STREAMING.md](architecture/SSE_STREAMING.md) | SSE streaming with `sse-kit`, heartbeat, abort signals, client integration |
 | [OBSERVABILITY.md](architecture/OBSERVABILITY.md) | Tracing infrastructure, handlers, sanitization, North Star instrumentation |
 | [TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | Test categories, Vitest config, golden datasets, integration tests |
 
@@ -284,7 +285,8 @@ Covers:
 | **LLM Integration** | Vercel AI SDK + @ai-sdk/anthropic | Native streaming; generateObject; excellent DX |
 | **Orchestration** | **Custom Pipeline Orchestrator** | Framework-agnostic; no vendor lock-in |
 | **State Schema** | Zod | Runtime validation; TypeScript inference; no LangChain dependency |
-| **Framework** | Next.js 15 (App Router) | SSR, SSE streaming, API routes, React Server Components |
+| **Framework** | Next.js 15 (App Router) | SSR, API routes, React Server Components |
+| **SSE Streaming** | `sse-kit` | Heartbeat, abort signals, observability hooks, reconnection |
 | **Database** | PostgreSQL (Supabase) | Reliable; session and memory persistence |
 | **ORM** | Drizzle | Type-safe SQL; lightweight; great migrations |
 | **Cache** | Redis (ioredis) | Session state; rate limiting; circuit breaker state |
@@ -309,6 +311,7 @@ Covers:
     "ioredis": "^5.4.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
+    "sse-kit": "^0.1.0",
     "uuidv7": "^1.1.0",
     "zod": "^3.24.0"
   },
@@ -598,10 +601,11 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 | 2025-12-24 | Drizzle ORM | Prisma, TypeORM | Lightweight; SQL-first; excellent TypeScript inference |
 | 2025-12-24 | Vitest over Jest | Jest, Node test runner | Faster; native ESM; better Vite integration |
 | 2025-12-28 | **Document modularization** | Single monolithic file | Maintainability; focused concerns; easier navigation |
+| 2025-12-28 | **`sse-kit` for SSE streaming** | Raw ReadableStream, EventSource polyfill | Heartbeat, abort signals, observability hooks, reconnection, React hook |
 
 ---
 
-**Document Status**: v5.4 - Modularized Architecture
+**Document Status**: v5.5 - SSE Streaming Architecture
 **Revision History**:
 - v1.0 (2025-12-24): Initial blueprint (Python/FastAPI)
 - v2.0 (2025-12-24): Enhanced observability patterns
@@ -614,6 +618,15 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 - v5.2 (2025-12-27): Performance optimization patterns
 - v5.3 (2025-12-27): JTBD-enhanced system prompts with few-shot examples
 - v5.4 (2025-12-28): **Modularized architecture** (split into 6 focused documents in `docs/architecture/`)
+- v5.5 (2025-12-28): **SSE Streaming Architecture** (added `sse-kit` integration, new SSE_STREAMING.md document)
+
+**Key Changes in v5.5** (SSE Streaming Architecture):
+- Added `sse-kit` dependency for SSE streaming with heartbeat, abort signals, and observability hooks
+- Created new [SSE_STREAMING.md](architecture/SSE_STREAMING.md) architecture document (comprehensive SSE implementation guide)
+- Updated IMPLEMENTATION_SCAFFOLD.md streaming endpoint to use `sse-kit` patterns
+- Added `StreamObserver` integration for OpenTelemetry tracing of stream lifecycle events
+- Added client-side `useSSEStream` React hook integration with reconnection and circuit breaker
+- Documented SSE message protocol, event types, and security considerations
 
 **Key Changes in v5.4** (Modularized Architecture):
 - Split 6,749-line monolithic document into 7 focused files
