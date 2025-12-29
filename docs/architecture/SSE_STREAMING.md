@@ -2,14 +2,14 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 8:30PM PST
-> **Library**: [`sse-kit`](https://github.com/agenisea/sse-kit)
+> **Last Updated**: 12-29-25 1:55PM PST
+> **Library**: [`@agenisea/sse-kit`](https://github.com/agenisea/sse-kit)
 
 ---
 
 ## Executive Summary
 
-Mollei uses Server-Sent Events (SSE) for real-time streaming of multi-agent pipeline responses. This document specifies the SSE integration using `sse-kit`, a framework-agnostic TypeScript library providing:
+Mollei uses Server-Sent Events (SSE) for real-time streaming of multi-agent pipeline responses. This document specifies the SSE integration using `@agenisea/sse-kit`, a framework-agnostic TypeScript library providing:
 
 - **Server-side orchestration** with heartbeat, abort signals, and observability hooks
 - **Client-side parsing** with exponential backoff reconnection
@@ -95,7 +95,7 @@ Mollei uses Server-Sent Events (SSE) for real-time streaming of multi-agent pipe
 ```json
 {
   "dependencies": {
-    "sse-kit": "^0.1.0"
+    "@agenisea/sse-kit": "^0.1.0"
   }
 }
 ```
@@ -104,7 +104,7 @@ Mollei uses Server-Sent Events (SSE) for real-time streaming of multi-agent pipe
 
 ```typescript
 // lib/streaming/sse-events.ts
-import type { SSEUpdate } from "sse-kit/types";
+import type { SSEUpdate } from "@agenisea/sse-kit/types";
 
 export interface MolleiSSEUpdate extends SSEUpdate {
   phase: MolleiStreamPhase;
@@ -145,8 +145,8 @@ export interface MolleiStreamMetadata {
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { createStreamingResponse, createSSEResponse } from "sse-kit/server";
-import type { StreamObserver } from "sse-kit/server";
+import { createStreamingResponse, createSSEResponse } from "@agenisea/sse-kit/server";
+import type { StreamObserver } from "@agenisea/sse-kit/server";
 import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
 import { createPipelineContext } from "@/lib/pipeline/context";
 import { createTraceId } from "@/lib/infrastructure/trace";
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
     },
   };
 
-  // Create streaming response with sse-kit
+  // Create streaming response with @agenisea/sse-kit
   const { stream, orchestrator } = createStreamingResponse<MolleiSSEUpdate>({
     signal: request.signal, // Auto-abort on client disconnect
     heartbeat: { intervalMs: 5000 },
@@ -268,7 +268,7 @@ For streaming individual tokens from the response generator:
 // lib/agents/response-generator-stream.ts
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
-import { StreamOrchestrator } from "sse-kit/server";
+import { StreamOrchestrator } from "@agenisea/sse-kit/server";
 import { AGENT_MODELS } from "@/lib/ai/models";
 import { TOKEN_BUDGETS } from "@/lib/utils/constants";
 import type { MolleiSSEUpdate } from "@/lib/streaming/sse-events";
@@ -307,7 +307,7 @@ export async function streamResponseGenerator(
 
 ```typescript
 // hooks/use-mollei-stream.ts
-import { useSSEStream } from "sse-kit/client";
+import { useSSEStream } from "@agenisea/sse-kit/client";
 import type { MolleiSSEUpdate, MolleiStreamResult, MolleiStreamPhase } from "@/lib/streaming/sse-events";
 
 export interface ChatInput {
@@ -549,7 +549,7 @@ export function createPipelineContext(options: {
 
 ```typescript
 // lib/streaming/sse-progress-adapter.ts
-import { StreamOrchestrator } from "sse-kit/server";
+import { StreamOrchestrator } from "@agenisea/sse-kit/server";
 import type { ProgressReporter } from "@/lib/pipeline/types";
 import type { MolleiSSEUpdate, MolleiStreamPhase } from "./sse-events";
 
@@ -616,7 +616,7 @@ export abstract class BaseAgent {
 
 ```typescript
 // lib/client/stream-client.ts
-import { createCircuitBreaker } from "sse-kit/client";
+import { createCircuitBreaker } from "@agenisea/sse-kit/client";
 
 const circuitBreaker = createCircuitBreaker({
   failureThreshold: 3,
@@ -922,7 +922,7 @@ describe("useMolleiStream", () => {
 
 ## 10. Migration Guide
 
-### From Raw ReadableStream to sse-kit
+### From Raw ReadableStream to @agenisea/sse-kit
 
 **Before** (manual SSE):
 ```typescript
@@ -938,7 +938,7 @@ return new Response(stream, {
 });
 ```
 
-**After** (sse-kit):
+**After** (@agenisea/sse-kit):
 ```typescript
 const { stream, orchestrator } = createStreamingResponse({
   signal: request.signal,
@@ -953,9 +953,9 @@ return createSSEResponse(stream);
 
 ---
 
-## Appendix A: sse-kit API Reference
+## Appendix A: @agenisea/sse-kit API Reference
 
-### Server (`sse-kit/server`)
+### Server (`@agenisea/sse-kit/server`)
 
 | Export | Description |
 |--------|-------------|
@@ -964,7 +964,7 @@ return createSSEResponse(stream);
 | `StreamOrchestrator` | Class for managing SSE stream |
 | `SSE_HEADERS` | Standard SSE headers object |
 
-### Client (`sse-kit/client`)
+### Client (`@agenisea/sse-kit/client`)
 
 | Export | Description |
 |--------|-------------|
@@ -973,7 +973,7 @@ return createSSEResponse(stream);
 | `fetchWithTimeout(fetchFn, config)` | Timeout-wrapped fetch |
 | `withRetry(operation, options)` | Retry wrapper with backoff |
 
-### Types (`sse-kit/types`)
+### Types (`@agenisea/sse-kit/types`)
 
 | Type | Description |
 |------|-------------|

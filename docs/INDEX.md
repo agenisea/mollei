@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-28-25 8:30PM PST
+> **Last Updated**: 12-29-25 1:55PM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -109,7 +109,7 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
     │   • API routes
     │
     ├── architecture/SSE_STREAMING.md (580 lines)
-    │   • SSE streaming with sse-kit
+    │   • SSE streaming with @agenisea/sse-kit
     │   • Heartbeat, abort signals, observability
     │   • Client-side React hook integration
     │   • Resilience patterns (circuit breaker, reconnection)
@@ -142,7 +142,7 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
 | ↳ [architecture/RESILIENCE_PATTERNS.md](architecture/RESILIENCE_PATTERNS.md) | 2 | Failure handling | Circuit breakers, fallbacks, timeouts |
 | ↳ [architecture/AGENT_PROMPTS.md](architecture/AGENT_PROMPTS.md) | 2 | Agent contracts | System prompts, JTBD, examples |
 | ↳ [architecture/IMPLEMENTATION_SCAFFOLD.md](architecture/IMPLEMENTATION_SCAFFOLD.md) | 2 | Code structure | Directory layout, base classes, routes |
-| ↳ [architecture/SSE_STREAMING.md](architecture/SSE_STREAMING.md) | 2 | SSE streaming | sse-kit, heartbeat, abort, resilience |
+| ↳ [architecture/SSE_STREAMING.md](architecture/SSE_STREAMING.md) | 2 | SSE streaming | @agenisea/sse-kit, heartbeat, abort, resilience |
 | ↳ [architecture/OBSERVABILITY.md](architecture/OBSERVABILITY.md) | 2 | Tracing & metrics | OpenTelemetry, LangSmith, North Star |
 | ↳ [architecture/TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | 2 | Test patterns | Vitest, golden datasets, integration |
 | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) | 2 | Security patterns | Auth, threats, compliance, incident response |

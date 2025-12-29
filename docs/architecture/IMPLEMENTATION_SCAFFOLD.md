@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 8:30PM PST
+> **Last Updated**: 12-29-25 1:55PM PST
 
 ---
 
@@ -901,15 +901,15 @@ export async function POST(request: NextRequest) {
 
 > **Full SSE Documentation**: See [SSE_STREAMING.md](SSE_STREAMING.md) for complete implementation details, client integration, and resilience patterns.
 
-Uses [`sse-kit`](https://github.com/agenisea/sse-kit) for SSE streaming with heartbeat, abort signals, and observability hooks.
+Uses [`@agenisea/sse-kit`](https://github.com/agenisea/sse-kit) for SSE streaming with heartbeat, abort signals, and observability hooks.
 
 ```typescript
 // app/api/chat/stream/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { createStreamingResponse, createSSEResponse } from "sse-kit/server";
-import type { StreamObserver } from "sse-kit/server";
+import { createStreamingResponse, createSSEResponse } from "@agenisea/sse-kit/server";
+import type { StreamObserver } from "@agenisea/sse-kit/server";
 import { runSequentialPipeline, getMolleiPipeline } from "@/lib/pipeline/orchestrator";
 import { createPipelineContext } from "@/lib/pipeline/context";
 import { createTraceId } from "@/lib/infrastructure/trace";
@@ -954,7 +954,7 @@ export async function POST(request: NextRequest) {
     },
   };
 
-  // Create streaming response with sse-kit
+  // Create streaming response with @agenisea/sse-kit
   const { stream, orchestrator } = createStreamingResponse<MolleiSSEUpdate>({
     signal: request.signal, // Auto-abort on client disconnect
     heartbeat: { intervalMs: 5000 },
