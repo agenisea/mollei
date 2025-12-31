@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-29-25 1:55PM PST
+> **Last Updated**: 12-30-25 5:15PM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -122,11 +122,17 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
     │   • PII sanitization
     │   • North Star instrumentation (WRU-ETI)
     │
-    └── architecture/TESTING_STRATEGY.md (240 lines)
-        • Test categories and coverage
-        • Vitest configuration
-        • Golden datasets for safety
-        • Integration tests
+    ├── architecture/TESTING_STRATEGY.md (240 lines)
+    │   • Test categories and coverage
+    │   • Vitest configuration
+    │   • Golden datasets for safety
+    │   • Integration tests
+    │
+    └── architecture/UI_DESIGN_SYSTEM.md (450+ lines)
+        • CSS design tokens (colors, typography, spacing)
+        • Chat interface components (bubbles, input, typing)
+        • Crisis mode components
+        • Accessibility patterns (ARIA, focus, screen reader)
 ```
 
 ---
@@ -145,6 +151,7 @@ ARCHITECTURE_BLUEPRINT.md (Core - ~624 lines)
 | ↳ [architecture/SSE_STREAMING.md](architecture/SSE_STREAMING.md) | 2 | SSE streaming | @agenisea/sse-kit, heartbeat, abort, resilience |
 | ↳ [architecture/OBSERVABILITY.md](architecture/OBSERVABILITY.md) | 2 | Tracing & metrics | OpenTelemetry, LangSmith, North Star |
 | ↳ [architecture/TESTING_STRATEGY.md](architecture/TESTING_STRATEGY.md) | 2 | Test patterns | Vitest, golden datasets, integration |
+| ↳ [architecture/UI_DESIGN_SYSTEM.md](architecture/UI_DESIGN_SYSTEM.md) | 2 | Design tokens & components | CSS tokens, chat UI, accessibility, crisis mode |
 | [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) | 2 | Security patterns | Auth, threats, compliance, incident response |
 | [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) | 3 | Performance work | Latency optimization, model selection |
 | [EMOTIONAL_AI_METHODOLOGY.md](EMOTIONAL_AI_METHODOLOGY.md) | 3 | Research basis | Understanding approach, ethics, citations |
@@ -203,6 +210,7 @@ NORTHSTAR.md (Strategic Authority)
 | ↳ architecture/SSE_STREAMING.md | Active | December 2025 |
 | ↳ architecture/OBSERVABILITY.md | Active | December 2025 |
 | ↳ architecture/TESTING_STRATEGY.md | Active | December 2025 |
+| ↳ architecture/UI_DESIGN_SYSTEM.md | Active | December 2025 |
 | SECURITY_ARCHITECTURE.md | Active | December 2025 |
 | OPTIMIZATION_PLAN.md | Active | December 2025 |
 | EMOTIONAL_AI_METHODOLOGY.md | Active | December 2025 |
