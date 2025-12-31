@@ -2,9 +2,9 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-30-25 6:30PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 
-Production-ready design tokens, component specifications, and interaction patterns for Mollei's chat interface.
+Design tokens, component specifications, and interaction patterns for Mollei's chat interface.
 
 ---
 
@@ -453,12 +453,38 @@ Add to your global CSS (`globals.css`):
      ========================= */
 
   /* =========================
-     TRANSITIONS
+     TRANSITIONS & TIMING
      ========================= */
 
   --transition-fast: 100ms ease-out;
   --transition-base: 150ms ease-out;
   --transition-slow: 200ms ease-in-out;
+
+  /* Animation Duration Tokens */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-deliberate: 500ms;
+  --duration-generation: 300ms;    /* For AI streaming states */
+  --duration-focus-enter: 400ms;   /* For focus mode transitions */
+
+  /* Easing Functions */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emotional: cubic-bezier(0.34, 1.56, 0.64, 1);  /* For emotional state changes */
+
+  /* =========================
+     EMOTIONAL STATE TOKENS
+     ========================= */
+
+  /* Emotional glow effects for AI response states */
+  --emotion-sensing-glow: oklch(0.8 0.12 180 / 0.3);   /* Teal glow during detection */
+  --emotion-processing-pulse: oklch(0.72 0.15 180);    /* Active processing */
+  --emotion-calm: oklch(0.75 0.08 200);                /* Peaceful state */
+  --emotion-warm: oklch(0.78 0.12 80);                 /* Warmth/comfort */
+  --emotion-alert: oklch(0.75 0.15 30);                /* Elevated attention */
 
   /* =========================
      LAYOUT
@@ -1081,6 +1107,167 @@ When a user returns within the session window (30 minutes), show context continu
     <svg aria-hidden="true"><!-- X icon --></svg>
   </button>
 </div>
+```
+
+### 4.5 Streaming UI Patterns (Emotional Detection Feedback)
+
+Visual feedback during AI emotional detection and response generation.
+
+```css
+/* =========================
+   KEYFRAME ANIMATIONS
+   ========================= */
+
+/* Shimmer sweep for skeleton loading */
+@keyframes shimmer-sweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Emotional sensing pulse - glowing border during detection */
+@keyframes emotion-sensing-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--emotion-sensing-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--emotion-sensing-glow);
+  }
+}
+
+/* Content reveal - fade in with subtle slide */
+@keyframes content-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Heartbeat pulse for active emotional processing */
+@keyframes heartbeat-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+/* =========================
+   STREAMING STATE CLASSES
+   ========================= */
+
+/* Container for streaming response with sensing indicator */
+.streaming-response {
+  position: relative;
+  animation: emotion-sensing-pulse 2s ease-in-out infinite;
+  border-radius: var(--radius-2xl);
+}
+
+.streaming-response.complete {
+  animation: none;
+  box-shadow: none;
+}
+
+/* Phase indicator during emotional detection */
+.sensing-phase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-accent-subtle);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.sensing-phase-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-accent);
+  animation: heartbeat-pulse 1.5s ease-in-out infinite;
+}
+
+.sensing-phase-text {
+  font-style: italic;
+}
+
+/* Content reveal animation for streamed content */
+.message-content-reveal {
+  animation: content-reveal var(--duration-generation) var(--ease-out);
+}
+
+/* Staggered reveal for multiple elements */
+.staggered-reveal > *:nth-child(1) { animation-delay: 0ms; }
+.staggered-reveal > *:nth-child(2) { animation-delay: 80ms; }
+.staggered-reveal > *:nth-child(3) { animation-delay: 160ms; }
+.staggered-reveal > *:nth-child(4) { animation-delay: 240ms; }
+
+/* Enhanced skeleton with emotional state theming */
+.skeleton-emotional {
+  background: linear-gradient(
+    90deg,
+    var(--color-accent-subtle) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    var(--color-accent-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Reduced motion: disable all streaming animations */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-response,
+  .sensing-phase-icon,
+  .message-content-reveal,
+  .skeleton-emotional {
+    animation: none;
+  }
+
+  .streaming-response {
+    box-shadow: none;
+    border: 1px solid var(--color-accent);
+  }
+}
+```
+
+**React Component Example:**
+
+```tsx
+// components/chat/streaming-response.tsx
+interface StreamingResponseProps {
+  phase: 'sensing' | 'processing' | 'generating' | 'complete'
+  children: React.ReactNode
+}
+
+const PHASE_MESSAGES = {
+  sensing: 'Sensing your feelings...',
+  processing: 'Understanding context...',
+  generating: 'Crafting a response...',
+  complete: '',
+} as const
+
+export function StreamingResponse({ phase, children }: StreamingResponseProps) {
+  const isActive = phase !== 'complete'
+
+  return (
+    <div
+      className={cn('streaming-response', !isActive && 'complete')}
+      aria-busy={isActive}
+      aria-live="polite"
+    >
+      {isActive && (
+        <div className="sensing-phase" role="status">
+          <HeartPulseIcon className="sensing-phase-icon" aria-hidden="true" />
+          <span className="sensing-phase-text">{PHASE_MESSAGES[phase]}</span>
+        </div>
+      )}
+      <div className={cn(phase === 'complete' && 'message-content-reveal')}>
+        {children}
+      </div>
+    </div>
+  )
+}
 ```
 
 ---
@@ -2315,6 +2502,630 @@ Non-blocking notifications for async feedback.
 - [ ] Screen reader testing completed
 - [ ] Mobile responsive verified
 - [ ] Keyboard navigation works throughout
+
+---
+
+## 13. Progressive Hints (Contextual Onboarding)
+
+Non-intrusive guided learning for emotional awareness.
+
+### 13.1 Progressive Hint Component
+
+```tsx
+// components/onboarding/progressive-hint.tsx
+import { useState, useEffect, useCallback } from 'react'
+import { cn } from '@/lib/client/ui-utils'
+
+interface ProgressiveHintProps {
+  hintId: string
+  title: string
+  description: string
+  children: React.ReactNode
+  position?: 'top' | 'bottom' | 'left' | 'right'
+  delay?: number
+  autoDismissMs?: number
+}
+
+// Hint storage hook
+function useHintStorage() {
+  const STORAGE_KEY = 'mollei-hints-seen'
+
+  const hasSeenHint = useCallback((hintId: string): boolean => {
+    if (typeof window === 'undefined') return true
+    const seen = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    return seen.includes(hintId)
+  }, [])
+
+  const markHintSeen = useCallback((hintId: string): void => {
+    if (typeof window === 'undefined') return
+    const seen = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    if (!seen.includes(hintId)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...seen, hintId]))
+    }
+  }, [])
+
+  return { hasSeenHint, markHintSeen }
+}
+
+export function ProgressiveHint({
+  hintId,
+  title,
+  description,
+  children,
+  position = 'top',
+  delay = 500,
+  autoDismissMs = 5000,
+}: ProgressiveHintProps) {
+  const { hasSeenHint, markHintSeen } = useHintStorage()
+  const [show, setShow] = useState(false)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (hasSeenHint(hintId)) return
+
+    const showTimer = setTimeout(() => {
+      setShow(true)
+      setTimeout(() => setVisible(true), 50)
+    }, delay)
+
+    const dismissTimer = setTimeout(() => {
+      handleDismiss()
+    }, delay + autoDismissMs)
+
+    return () => {
+      clearTimeout(showTimer)
+      clearTimeout(dismissTimer)
+    }
+  }, [hintId, delay, autoDismissMs, hasSeenHint])
+
+  const handleDismiss = () => {
+    setVisible(false)
+    setTimeout(() => {
+      setShow(false)
+      markHintSeen(hintId)
+    }, 200)
+  }
+
+  if (!show) return <>{children}</>
+
+  return (
+    <div className="progressive-hint-wrapper">
+      {children}
+      {visible && (
+        <div
+          className={cn('progressive-hint', `progressive-hint--${position}`)}
+          role="tooltip"
+          aria-live="polite"
+        >
+          <div className="progressive-hint-content">
+            <strong className="progressive-hint-title">{title}</strong>
+            <p className="progressive-hint-description">{description}</p>
+          </div>
+          <button
+            className="progressive-hint-dismiss"
+            onClick={handleDismiss}
+            aria-label="Dismiss hint"
+          >
+            Got it
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+### 13.2 Hint Styles
+
+```css
+/* Progressive hint container */
+.progressive-hint-wrapper {
+  position: relative;
+}
+
+.progressive-hint {
+  position: absolute;
+  z-index: 50;
+  width: 16rem;
+  padding: var(--space-3);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  animation: hint-enter 200ms var(--ease-out);
+}
+
+@keyframes hint-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Position variants */
+.progressive-hint--top {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: var(--space-2);
+}
+
+.progressive-hint--bottom {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: var(--space-2);
+}
+
+.progressive-hint-content {
+  margin-bottom: var(--space-2);
+}
+
+.progressive-hint-title {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.progressive-hint-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.progressive-hint-dismiss {
+  width: 100%;
+  padding: var(--space-2);
+  background-color: var(--color-accent-subtle);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.progressive-hint-dismiss:hover {
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.progressive-hint-dismiss:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressive-hint {
+    animation: none;
+  }
+}
+```
+
+### 13.3 Emotional Awareness Hints
+
+Contextual hints for Mollei's emotional intelligence features:
+
+```tsx
+// Hint IDs for emotional awareness features
+export const EMOTIONAL_HINTS = {
+  MEMORY_CALLBACK: 'emotional-memory-callback',
+  PATTERN_RECOGNITION: 'emotional-pattern-recognition',
+  CRISIS_RESOURCES: 'emotional-crisis-resources',
+  SESSION_RESUME: 'emotional-session-resume',
+} as const
+
+// Usage example
+<ProgressiveHint
+  hintId={EMOTIONAL_HINTS.PATTERN_RECOGNITION}
+  title="Emotional Pattern Detected"
+  description="Mollei noticed you often mention work stress. This helps provide more personalized support."
+  position="bottom"
+>
+  <div className="pattern-indicator">...</div>
+</ProgressiveHint>
+```
+
+---
+
+## 14. Error Boundary with Crisis Detection
+
+Graceful error handling with safety-aware recovery for emotional AI context.
+
+### 14.1 Error Boundary Component
+
+```tsx
+// components/error-boundary.tsx
+import { Component, ReactNode } from 'react'
+import { AlertTriangle, RefreshCw, Phone } from 'lucide-react'
+
+interface ErrorBoundaryProps {
+  children: ReactNode
+  fallbackComponent?: ReactNode
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+  isCrisisContext: boolean
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null, isCrisisContext: false }
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Caught error:', error, errorInfo)
+    this.props.onError?.(error, errorInfo)
+
+    // Detect if error occurred during crisis-related context
+    const isCrisisContext = this.detectCrisisContext()
+    this.setState({ isCrisisContext })
+  }
+
+  private detectCrisisContext(): boolean {
+    // Check URL or session state for crisis indicators
+    if (typeof window !== 'undefined') {
+      const url = window.location.href
+      return url.includes('crisis') || sessionStorage.getItem('crisis-mode') === 'true'
+    }
+    return false
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null, isCrisisContext: false })
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallbackComponent) {
+        return this.props.fallbackComponent
+      }
+
+      return (
+        <div className="error-boundary" role="alert">
+          <div className="error-boundary-card">
+            <div className="error-boundary-header">
+              <div className="error-boundary-icon">
+                <AlertTriangle aria-hidden="true" />
+              </div>
+              <h2 className="error-boundary-title">Something went wrong</h2>
+            </div>
+
+            <div className="error-boundary-content">
+              <p className="error-boundary-message">
+                We're sorry, but something unexpected happened. Your conversation is safe.
+              </p>
+
+              {/* Crisis resources - always visible during crisis context */}
+              {this.state.isCrisisContext && (
+                <div className="error-boundary-crisis" role="alert">
+                  <Phone className="error-boundary-crisis-icon" aria-hidden="true" />
+                  <div>
+                    <p className="error-boundary-crisis-title">
+                      If you're in crisis, help is available:
+                    </p>
+                    <a
+                      href="tel:988"
+                      className="error-boundary-crisis-link"
+                    >
+                      988 Suicide & Crisis Lifeline (Call or Text)
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div className="error-boundary-actions">
+                <button
+                  onClick={this.handleReset}
+                  className="error-boundary-retry"
+                >
+                  <RefreshCw aria-hidden="true" />
+                  Try again
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="error-boundary-reload"
+                >
+                  Reload page
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+```
+
+### 14.2 Error Boundary Styles
+
+```css
+/* Error boundary container */
+.error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background-color: var(--color-background);
+}
+
+.error-boundary-card {
+  max-width: 28rem;
+  width: 100%;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+}
+
+.error-boundary-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.error-boundary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background-color: var(--color-error-subtle);
+  border-radius: var(--radius-full);
+  color: var(--color-error);
+}
+
+.error-boundary-title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.error-boundary-message {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-4);
+}
+
+/* Crisis resources in error state */
+.error-boundary-crisis {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background-color: var(--color-crisis-subtle);
+  border: 1px solid var(--color-crisis-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+}
+
+.error-boundary-crisis-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-crisis);
+  flex-shrink: 0;
+}
+
+.error-boundary-crisis-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.error-boundary-crisis-link {
+  font-size: var(--text-sm);
+  color: var(--color-crisis);
+  text-decoration: underline;
+  font-weight: var(--font-medium);
+}
+
+.error-boundary-crisis-link:hover {
+  text-decoration: none;
+}
+
+.error-boundary-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.error-boundary-retry,
+.error-boundary-reload {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  min-height: 44px;
+}
+
+.error-boundary-retry {
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
+  border: none;
+}
+
+.error-boundary-retry:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.error-boundary-reload {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.error-boundary-reload:hover {
+  background-color: var(--color-surface-elevated);
+  border-color: var(--color-border-hover);
+}
+```
+
+---
+
+## 15. Component Composition Pattern (data-slot)
+
+Semantic component identification for styling and testing.
+
+### 15.1 Pattern Overview
+
+Use `data-slot` attributes to identify component parts semantically:
+
+```tsx
+// Instead of relying on class names for structure:
+<div className="card">
+  <div className="card-header">...</div>
+  <div className="card-body">...</div>
+</div>
+
+// Use data-slot for semantic identification:
+<div data-slot="card">
+  <div data-slot="card-header">...</div>
+  <div data-slot="card-body">...</div>
+</div>
+```
+
+### 15.2 Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Testing** | Easy selection via `[data-slot="card"]` |
+| **Styling** | Component-scoped CSS without BEM |
+| **Structure** | Clear visual hierarchy |
+| **Decoupling** | Class names for appearance, slots for structure |
+
+### 15.3 Mollei Component Slots
+
+```tsx
+// Message component with slots
+export function Message({ variant, children }: MessageProps) {
+  return (
+    <div data-slot="message" data-variant={variant}>
+      <div data-slot="message-avatar">
+        {variant === 'mollei' && <MolleiAvatar />}
+      </div>
+      <div data-slot="message-content">{children}</div>
+      <div data-slot="message-timestamp">
+        <time>...</time>
+      </div>
+    </div>
+  )
+}
+
+// Chat input with slots
+export function ChatInput({ onSend }: ChatInputProps) {
+  return (
+    <form data-slot="chat-input">
+      <textarea data-slot="chat-input-field" />
+      <button data-slot="chat-input-send" type="submit">
+        Send
+      </button>
+    </form>
+  )
+}
+
+// Crisis resources with slots
+export function CrisisResources({ resources }: CrisisResourcesProps) {
+  return (
+    <div data-slot="crisis-resources">
+      <div data-slot="crisis-resources-header">
+        Help is available
+      </div>
+      <ul data-slot="crisis-resources-list">
+        {resources.map(resource => (
+          <li data-slot="crisis-resource-item" key={resource.id}>
+            <a data-slot="crisis-resource-link" href={resource.url}>
+              {resource.name}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+```
+
+### 15.4 Slot-Based Styling
+
+```css
+/* Target slots for styling */
+[data-slot="message"] {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+[data-slot="message"][data-variant="user"] {
+  flex-direction: row-reverse;
+}
+
+[data-slot="message-content"] {
+  flex: 1;
+  max-width: 80%;
+}
+
+[data-slot="message-timestamp"] {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Crisis resources styling */
+[data-slot="crisis-resources"] {
+  background-color: var(--color-crisis-subtle);
+  border: 1px solid var(--color-crisis-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+[data-slot="crisis-resource-link"] {
+  color: var(--color-crisis);
+  font-weight: var(--font-medium);
+}
+```
+
+### 15.5 Testing with Slots
+
+```tsx
+// Test file: message.test.tsx
+import { render, screen } from '@testing-library/react'
+import { Message } from './message'
+
+test('renders message with correct structure', () => {
+  render(<Message variant="mollei">Hello</Message>)
+
+  expect(screen.getByTestId('message')).toHaveAttribute('data-variant', 'mollei')
+  expect(screen.getByTestId('message-content')).toHaveTextContent('Hello')
+})
+
+// Alternatively, query by data-slot
+const message = document.querySelector('[data-slot="message"]')
+const content = document.querySelector('[data-slot="message-content"]')
+```
 
 ---
 

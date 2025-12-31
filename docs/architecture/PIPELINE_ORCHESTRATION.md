@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-30-25 6:00PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -223,16 +223,49 @@ export interface PipelineModule<TInput = unknown, TOutput = unknown> {
 
 /**
  * Request-scoped pipeline context
+ *
+ * ⚠️ NEVER store in global state - each request gets a fresh instance.
+ * See OBSERVABILITY.md §6A.3 for authoritative definition.
  */
 export interface PipelineContext {
+  // Identity (required)
   traceId: TraceId
   sessionId: string
   userId: string
+  turnNumber: number
+
+  // Request-scoped resources (NOT shared across requests)
+  budgetTracker: TokenBudgetTracker
+  llmLimiter: LLMLimiterContext
+
+  // Cancellation and streaming
   abortSignal?: AbortSignal
   onProgress?: (phase: string, data?: unknown) => void
+}
 
-  // Mollei-specific: per-request token budget tracking
-  tokenBudget?: TokenBudgetTracker
+/**
+ * Factory for creating request-scoped pipeline context.
+ * Creates fresh TraceId and initializes per-request resources.
+ */
+export function createPipelineContext(params: {
+  sessionId: string
+  userId: string
+  turnNumber: number
+  tokenBudget?: number
+  llmConcurrency?: number
+  abortSignal?: AbortSignal
+  onProgress?: (phase: string, data?: unknown) => void
+}): PipelineContext {
+  return {
+    traceId: createTraceId(TRACE_SCOPE.TURN),
+    sessionId: params.sessionId,
+    userId: params.userId,
+    turnNumber: params.turnNumber,
+    budgetTracker: new TokenBudgetTracker(params.tokenBudget ?? TOKEN_BUDGETS.REQUEST_TOTAL),
+    llmLimiter: createLLMLimiterContext(params.llmConcurrency ?? LLM_CONCURRENCY_LIMIT),
+    abortSignal: params.abortSignal,
+    onProgress: params.onProgress,
+  }
 }
 
 /**

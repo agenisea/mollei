@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -1529,6 +1529,154 @@ implementation_notes:
     - Response generator should NOT include resources in output
     - Orchestrator handles resource appendage after response generation
 ```
+
+---
+
+## 4.6 Prompt Integration Patterns
+
+This section defines how agent prompts are loaded, composed, and used in the pipeline.
+
+### 4.6.1 File Organization
+
+```
+lib/
+├── ai/
+│   └── prompts/
+│       ├── index.ts                    # Re-exports all prompt builders
+│       ├── mood-sensor-prompts.ts      # buildMoodSensorPrompt()
+│       ├── memory-agent-prompts.ts     # buildMemoryAgentPrompt()
+│       ├── safety-monitor-prompts.ts   # buildSafetyMonitorPrompt()
+│       ├── emotion-reasoner-prompts.ts # buildEmotionReasonerPrompt()
+│       ├── response-generator-prompts.ts # buildResponseGeneratorPrompt()
+│       └── sanitization.ts             # Input sanitization utilities
+```
+
+### 4.6.2 Prompt Builder Pattern
+
+Each agent has a typed prompt builder function that:
+1. Accepts strongly-typed context
+2. Sanitizes ALL user-provided text before interpolation
+3. Builds conditional context blocks (history, emotional state)
+4. Returns plain string ready for LLM
+
+```typescript
+// lib/ai/prompts/mood-sensor-prompts.ts
+import { AGENT_PROMPTS } from './index'
+import { sanitizeUserMessage } from './sanitization'
+import type { MolleiState } from '@/lib/pipeline/state'
+
+interface MoodSensorContext {
+  userMessage: string
+  sessionHistory?: string[]
+  turnNumber: number
+}
+
+export function buildMoodSensorPrompt(ctx: MoodSensorContext): string {
+  const safeMessage = sanitizeUserMessage(ctx.userMessage)
+  const historyContext = ctx.sessionHistory?.length
+    ? `Recent context:\n${ctx.sessionHistory.slice(-3).join('\n')}`
+    : ''
+
+  return `${AGENT_PROMPTS.MOOD_SENSOR.systemPrompt}
+
+${historyContext}
+
+User message to analyze:
+${safeMessage}`
+}
+```
+
+### 4.6.3 Input Sanitization
+
+User-provided content MUST be sanitized before prompt interpolation to prevent prompt injection.
+
+```typescript
+// lib/ai/prompts/sanitization.ts
+import { INJECTION_PATTERNS } from '@/lib/security/patterns'
+
+export function sanitizeUserMessage(text: string): string {
+  let sanitized = text
+
+  // Remove special tokens that could inject system instructions
+  sanitized = sanitized.replace(/<\|[^|]*\|>/g, '')
+  sanitized = sanitized.replace(/\[\/?INST\]/gi, '')
+  sanitized = sanitized.replace(/\[\/?SYSTEM\]/gi, '')
+
+  // Remove role prefixes that could override context
+  sanitized = sanitized.replace(/^(system|assistant|user):\s*/gim, '')
+
+  // Normalize excessive whitespace
+  sanitized = sanitized.split(/\s+/).join(' ').trim()
+
+  // Truncate to prevent context overflow
+  if (sanitized.length > 10_000) {
+    sanitized = sanitized.slice(0, 10_000) + '...[truncated]'
+  }
+
+  return sanitized
+}
+
+export function sanitizeHistoricalContent(turns: string[]): string[] {
+  return turns.map(sanitizeUserMessage)
+}
+```
+
+### 4.6.4 Agent Implementation
+
+Agents use prompt builders in their `execute` method:
+
+```typescript
+// lib/agents/mood-sensor.ts
+import { buildMoodSensorPrompt } from '@/lib/ai/prompts'
+import { generateObject } from 'ai'
+import { anthropic } from '@ai-sdk/anthropic'
+import { AGENT_MODELS, TOKEN_BUDGETS, TIMEOUTS } from '@/lib/utils/constants'
+import type { MolleiState } from '@/lib/pipeline/state'
+import type { PipelineContext } from '@/lib/pipeline/context'
+import { MoodSensorOutputSchema } from '@/lib/agents/schemas'
+
+export async function moodSensorAgent(
+  state: MolleiState,
+  ctx: PipelineContext
+): Promise<Partial<MolleiState>> {
+  // Build prompt with context
+  const prompt = buildMoodSensorPrompt({
+    userMessage: state.userMessage,
+    sessionHistory: state.sessionHistory,
+    turnNumber: ctx.turnNumber,
+  })
+
+  // Use budgetTracker from context for per-request limiting
+  const budget = ctx.budgetTracker.allocate('mood_sensor', TOKEN_BUDGETS.MOOD_SENSOR)
+
+  const { object } = await generateObject({
+    model: anthropic(AGENT_MODELS.MOOD_SENSOR),
+    prompt,
+    schema: MoodSensorOutputSchema,
+    maxTokens: budget,
+    abortSignal: AbortSignal.timeout(TIMEOUTS.MOOD_SENSOR),
+  })
+
+  // Emit progress for streaming
+  ctx.onProgress?.('mood_sensor', { detected: object.primary })
+
+  return {
+    userEmotion: object,
+    ambiguityNotes: object.ambiguity_notes,
+  }
+}
+```
+
+### 4.6.5 Cross-Document References
+
+| Topic | Document | Section |
+|-------|----------|---------|
+| PipelineContext schema | OBSERVABILITY.md | §6A.3 |
+| Token budgets per agent | IMPLEMENTATION_SCAFFOLD.md | §5.2 |
+| Circuit breaker wrapping | RESILIENCE_PATTERNS.md | §3.1 |
+| Agent execution order | PIPELINE_ORCHESTRATION.md | §2.5 |
+| Prompt injection defense | SECURITY_ARCHITECTURE.md | §5.1 |
+| Emotional vocabulary | EMOTIONAL_AI_METHODOLOGY.md | §2.1 |
 
 ---
 

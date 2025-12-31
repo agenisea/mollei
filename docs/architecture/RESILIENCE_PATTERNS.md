@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-30-25 6:00PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -96,15 +96,22 @@ const CIRCUIT_BREAKER_CONFIGS = buildCircuitBreakerConfigs();
 export class CircuitBreaker implements ICircuitBreaker {
   private state: CircuitState = "closed";
   private failureCount = 0;
+  private successCount = 0;
   private lastFailureTime = 0;
+  private halfOpenRequestCount = 0;
   private config: CircuitBreakerConfig;
+  private onStateChange?: (from: CircuitState, to: CircuitState, agentId: string) => void;
 
-  constructor(private agentId: string) {
+  constructor(
+    private agentId: string,
+    options?: { onStateChange?: (from: CircuitState, to: CircuitState, agentId: string) => void }
+  ) {
     this.config = CIRCUIT_BREAKER_CONFIGS[agentId] ?? {
       failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD,
       recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS,
       halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS,
     };
+    this.onStateChange = options?.onStateChange;
   }
 
   allowRequest(): boolean {
@@ -113,33 +120,142 @@ export class CircuitBreaker implements ICircuitBreaker {
     if (this.state === "open") {
       const elapsed = Date.now() - this.lastFailureTime;
       if (elapsed >= this.config.recoveryTimeoutMs) {
-        this.state = "half_open";
+        this.transitionTo("half_open");
+        this.halfOpenRequestCount = 0;
         return true;
       }
       return false;
     }
 
-    // half_open: allow limited requests
-    return true;
+    // half_open: allow limited requests for testing recovery
+    if (this.halfOpenRequestCount < this.config.halfOpenRequests) {
+      this.halfOpenRequestCount++;
+      return true;
+    }
+    return false;
   }
 
   recordSuccess(): void {
-    this.failureCount = 0;
-    this.state = "closed";
+    if (this.state === "half_open") {
+      this.successCount++;
+      // Require multiple successes in half-open before closing
+      if (this.successCount >= this.config.halfOpenRequests) {
+        this.transitionTo("closed");
+      }
+    } else {
+      this.failureCount = 0;
+    }
   }
 
   recordFailure(): void {
     this.failureCount++;
     this.lastFailureTime = Date.now();
+    this.successCount = 0;
 
-    if (this.failureCount >= this.config.failureThreshold) {
-      this.state = "open";
+    if (this.state === "half_open") {
+      // Any failure in half-open immediately reopens
+      this.transitionTo("open");
+    } else if (this.failureCount >= this.config.failureThreshold) {
+      this.transitionTo("open");
     }
   }
 
   getState(): CircuitState {
     return this.state;
   }
+
+  private transitionTo(newState: CircuitState): void {
+    if (this.state === newState) return;
+    const oldState = this.state;
+    this.state = newState;
+
+    if (newState === "closed") {
+      this.failureCount = 0;
+      this.successCount = 0;
+    }
+
+    this.onStateChange?.(oldState, newState, this.agentId);
+  }
+}
+
+/**
+ * Execute an async operation with circuit breaker protection.
+ * This is the primary interface for wrapping LLM calls.
+ *
+ * @example
+ * const breaker = new CircuitBreaker("mood_sensor");
+ * const result = await executeWithBreaker(breaker, async () => {
+ *   return await anthropic.messages.create({ ... });
+ * }, () => ({ primary: "neutral", intensity: 0.5 }));
+ */
+export async function executeWithBreaker<T>(
+  breaker: ICircuitBreaker,
+  operation: () => Promise<T>,
+  fallback: () => T
+): Promise<{ result: T; fromFallback: boolean }> {
+  if (!breaker.allowRequest()) {
+    return { result: fallback(), fromFallback: true };
+  }
+
+  try {
+    const result = await operation();
+    breaker.recordSuccess();
+    return { result, fromFallback: false };
+  } catch (error) {
+    breaker.recordFailure();
+    return { result: fallback(), fromFallback: true };
+  }
+}
+
+/**
+ * Execute with circuit breaker, timeout, and retry.
+ * Combines all resilience patterns for production agent calls.
+ */
+export async function executeWithResilience<T>(
+  breaker: ICircuitBreaker,
+  operation: () => Promise<T>,
+  options: {
+    fallback: () => T;
+    timeoutMs: number;
+    retries?: number;
+    retryDelayMs?: number;
+  }
+): Promise<{ result: T; fromFallback: boolean; attempts: number }> {
+  const { fallback, timeoutMs, retries = 0, retryDelayMs = 100 } = options;
+  let attempts = 0;
+
+  while (attempts <= retries) {
+    attempts++;
+
+    if (!breaker.allowRequest()) {
+      return { result: fallback(), fromFallback: true, attempts };
+    }
+
+    try {
+      const result = await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Operation timeout")), timeoutMs)
+        ),
+      ]);
+      breaker.recordSuccess();
+      return { result, fromFallback: false, attempts };
+    } catch (error) {
+      breaker.recordFailure();
+
+      // Don't retry if circuit just opened
+      if (breaker.getState() === "open") {
+        break;
+      }
+
+      // Wait before retry
+      if (attempts <= retries) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempts));
+      }
+    }
+  }
+
+  return { result: fallback(), fromFallback: true, attempts };
 }
 ```
 

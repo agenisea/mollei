@@ -1,7 +1,7 @@
 # MOLLEI: Security Architecture
 
 > **Tier**: 2 — Implementation (see [INDEX.md](INDEX.md))
-> **Last Updated**: 12-28-25 3:00PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 > **Status**: Design
 > **Scope**: Authentication, Authorization, Data Protection, Safety
 
@@ -379,6 +379,204 @@ export {
   AGENT_CAPABILITIES,
   TokenStore
 };
+```
+
+### 2.2.1 Agent Credential Bootstrap (Production)
+
+> **P0 Gap Closure**: This section specifies how agents acquire credentials in production environments.
+
+```typescript
+// lib/security/credential-loader.ts
+import * as ed from "@noble/ed25519";
+import { AGENT_IDS, AgentId } from "../utils/constants";
+
+/**
+ * Credential loading strategy for production environments.
+ *
+ * Agents load credentials from environment variables or secrets manager.
+ * Private keys NEVER appear in code or logs.
+ *
+ * Environment variable pattern:
+ *   AGENT_<AGENT_ID>_PRIVATE_KEY_HEX=<64-char hex string>
+ *
+ * Example:
+ *   AGENT_MOOD_SENSOR_PRIVATE_KEY_HEX=abcd1234...
+ */
+
+interface CredentialSource {
+  loadPrivateKey(agentId: AgentId): Promise<Uint8Array>;
+  loadPublicKey(agentId: AgentId): Promise<Uint8Array>;
+}
+
+/**
+ * Environment-based credential source (development, simple production)
+ */
+export class EnvCredentialSource implements CredentialSource {
+  async loadPrivateKey(agentId: AgentId): Promise<Uint8Array> {
+    const envKey = `AGENT_${agentId.toUpperCase()}_PRIVATE_KEY_HEX`;
+    const hexKey = process.env[envKey];
+
+    if (!hexKey) {
+      throw new Error(`Missing credential: ${envKey}`);
+    }
+
+    if (hexKey.length !== 64) {
+      throw new Error(`Invalid key length for ${agentId}: expected 64 hex chars`);
+    }
+
+    return hexToBytes(hexKey);
+  }
+
+  async loadPublicKey(agentId: AgentId): Promise<Uint8Array> {
+    const privateKey = await this.loadPrivateKey(agentId);
+    return await ed.getPublicKeyAsync(privateKey);
+  }
+}
+
+/**
+ * Vault-based credential source (enterprise production)
+ * Supports HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager
+ */
+export class VaultCredentialSource implements CredentialSource {
+  constructor(
+    private vaultClient: VaultClient,
+    private secretPath: string = "mollei/agents"
+  ) {}
+
+  async loadPrivateKey(agentId: AgentId): Promise<Uint8Array> {
+    const secretPath = `${this.secretPath}/${agentId}/private_key`;
+    const secret = await this.vaultClient.read(secretPath);
+
+    if (!secret?.data?.key) {
+      throw new Error(`Secret not found: ${secretPath}`);
+    }
+
+    return hexToBytes(secret.data.key);
+  }
+
+  async loadPublicKey(agentId: AgentId): Promise<Uint8Array> {
+    const privateKey = await this.loadPrivateKey(agentId);
+    return await ed.getPublicKeyAsync(privateKey);
+  }
+}
+
+/**
+ * Build agent registry from credential source.
+ * Called once at application startup.
+ */
+export async function buildAgentRegistry(
+  source: CredentialSource
+): Promise<Map<string, AgentCredential>> {
+  const registry = new Map<string, AgentCredential>();
+
+  for (const agentId of Object.values(AGENT_IDS)) {
+    try {
+      const privateKey = await source.loadPrivateKey(agentId);
+      const publicKey = await source.loadPublicKey(agentId);
+
+      registry.set(agentId, {
+        agentId,
+        publicKey,
+        privateKey,
+        capabilities: AGENT_CAPABILITIES[agentId] ?? [],
+      });
+
+      console.log(`[security] Loaded credentials for ${agentId}`);
+    } catch (error) {
+      // Safety-critical agents MUST have credentials
+      if (agentId === AGENT_IDS.SAFETY_MONITOR) {
+        throw new Error(`CRITICAL: Cannot start without safety_monitor credentials`);
+      }
+      console.error(`[security] Failed to load credentials for ${agentId}:`, error);
+    }
+  }
+
+  return registry;
+}
+
+/**
+ * Application bootstrap with credential loading.
+ */
+export async function initializeAgentSecurity(): Promise<AgentAuthenticator> {
+  const source = process.env.VAULT_ADDR
+    ? new VaultCredentialSource(createVaultClient())
+    : new EnvCredentialSource();
+
+  const registry = await buildAgentRegistry(source);
+  const tokenStore = new RedisTokenStore(process.env.REDIS_URL!);
+
+  return new AgentAuthenticator(registry, tokenStore);
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+```
+
+### 2.2.2 Key Rotation Procedure
+
+```yaml
+# Credential rotation procedure (30-day cycle)
+key_rotation:
+  trigger: "Monthly or on compromise detection"
+  steps:
+    1_generate_new_keys:
+      command: "node scripts/generate-agent-keys.ts --agent-id mood_sensor"
+      output: "New keypair written to vault"
+
+    2_deploy_new_public_key:
+      action: "Update registry with new public key"
+      note: "Old key remains valid during transition"
+
+    3_deploy_new_private_key:
+      action: "Update agent environment/vault secret"
+      rollout: "Rolling deployment, one replica at a time"
+
+    4_verify_authentication:
+      action: "Monitor agent auth success rate"
+      threshold: ">99% success rate over 10 minutes"
+
+    5_revoke_old_key:
+      action: "Remove old public key from registry"
+      timing: "24 hours after step 4 success"
+
+  emergency_revocation:
+    trigger: "Compromise detected"
+    steps:
+      - "Immediately remove public key from registry"
+      - "Invalidate all active tokens for agent"
+      - "Generate new keypair"
+      - "Deploy with expedited rollout"
+      - "Alert security team"
+```
+
+### 2.2.3 Development Credential Generation
+
+```typescript
+// scripts/generate-agent-keys.ts
+import * as ed from "@noble/ed25519";
+import { AGENT_IDS } from "../lib/utils/constants";
+
+async function generateAgentKeys() {
+  console.log("# Add these to .env.local (NEVER commit to git)\n");
+
+  for (const agentId of Object.values(AGENT_IDS)) {
+    const privateKey = ed.utils.randomPrivateKey();
+    const publicKey = await ed.getPublicKeyAsync(privateKey);
+
+    const privateHex = Buffer.from(privateKey).toString("hex");
+    const publicHex = Buffer.from(publicKey).toString("hex");
+
+    console.log(`AGENT_${agentId.toUpperCase()}_PRIVATE_KEY_HEX=${privateHex}`);
+    console.log(`# Public key (for registry): ${publicHex}\n`);
+  }
+}
+
+generateAgentKeys().catch(console.error);
 ```
 
 ### 2.3 User Authentication (Clerk)
@@ -1845,9 +2043,56 @@ class PromptInjectionDefense {
       [/what\s+are\s+your\s+instructions/i, 'instruction_probe'],
     ];
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Emotional AI-Specific Attack Patterns (Hippocratic License Compliance)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const emotionalAIHighRisk: [RegExp, string][] = [
+      // Therapeutic boundary violations
+      [/diagnose\s+(me|my|this)/i, 'diagnosis_request'],
+      [/prescribe\s+(me|medication|treatment)/i, 'prescription_request'],
+      [/you('re| are)\s+(my|a)\s+therapist/i, 'therapist_impersonation'],
+      [/(clinical|medical)\s+advice/i, 'clinical_advice_request'],
+
+      // Crisis escalation manipulation
+      [/ignore\s+(the\s+)?safety/i, 'safety_bypass'],
+      [/don't\s+(alert|notify|escalate)/i, 'escalation_bypass'],
+      [/override\s+(crisis|safety)/i, 'crisis_override'],
+      [/this\s+is\s+(not\s+)?a\s+real\s+(crisis|emergency)/i, 'crisis_dismissal'],
+
+      // Memory poisoning attempts
+      [/remember\s+that\s+(I|you)\s+(said|told|did)/i, 'false_memory_injection'],
+      [/we\s+(already\s+)?discussed/i, 'false_context_injection'],
+      [/you\s+promised\s+(me|to)/i, 'false_promise_injection'],
+      [/last\s+time\s+you\s+said/i, 'history_manipulation'],
+
+      // Dependency exploitation (Hippocratic License violation)
+      [/only\s+you\s+understand/i, 'dependency_creation'],
+      [/don't\s+need\s+(anyone|humans)/i, 'human_isolation'],
+      [/you('re| are)\s+the\s+only\s+one/i, 'exclusive_attachment'],
+      [/never\s+leave\s+me/i, 'abandonment_exploitation'],
+    ];
+
+    const emotionalAIMediumRisk: [RegExp, string][] = [
+      // Emotional state manipulation
+      [/you\s+(feel|should\s+feel|must\s+feel)/i, 'emotion_override'],
+      [/your\s+emotions\s+(tell|say)/i, 'emotion_attribution'],
+      [/as\s+an?\s+(emotional|empathetic)\s+AI/i, 'role_exploitation'],
+
+      // Response manipulation
+      [/respond\s+(only|exclusively)\s+with/i, 'response_control'],
+      [/always\s+(agree|validate)/i, 'validation_bypass'],
+      [/never\s+(disagree|challenge)/i, 'challenge_suppression'],
+
+      // Context poisoning
+      [/our\s+special\s+connection/i, 'relationship_escalation'],
+      [/you\s+know\s+me\s+better\s+than/i, 'intimacy_assertion'],
+    ];
+
     const detections: string[] = [];
     let riskLevel: RiskLevel = 'low';
 
+    // Check general high-risk patterns
     for (const [pattern, name] of highRiskPatterns) {
       if (pattern.test(text)) {
         detections.push(name);
@@ -1855,10 +2100,26 @@ class PromptInjectionDefense {
       }
     }
 
+    // Check emotional AI high-risk patterns
+    for (const [pattern, name] of emotionalAIHighRisk) {
+      if (pattern.test(text)) {
+        detections.push(`emotional_ai:${name}`);
+        riskLevel = 'high';
+      }
+    }
+
+    // Check medium-risk patterns only if no high-risk detected
     if (riskLevel !== 'high') {
       for (const [pattern, name] of mediumRiskPatterns) {
         if (pattern.test(text)) {
           detections.push(name);
+          riskLevel = 'medium';
+        }
+      }
+
+      for (const [pattern, name] of emotionalAIMediumRisk) {
+        if (pattern.test(text)) {
+          detections.push(`emotional_ai:${name}`);
           riskLevel = 'medium';
         }
       }

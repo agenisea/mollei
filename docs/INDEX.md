@@ -1,6 +1,6 @@
 # Mollei Documentation Index
 
-> **Last Updated**: 12-30-25 5:15PM PST
+> **Last Updated**: 12-30-25 7:00PM PST
 > **Purpose**: Single source of truth for documentation structure and hierarchy
 
 ---
@@ -193,6 +193,31 @@ NORTHSTAR.md (Strategic Authority)
     │
     └──► BRAND_GUIDELINES.md (brand identity and voice)
 ```
+
+---
+
+## Cross-Reference Matrix
+
+This matrix defines which documents reference each other and for what purpose. When implementing a feature, consult all documents that have an "X" in that column.
+
+| Topic | NORTHSTAR | BLUEPRINT | PIPELINE_ORCH | RESILIENCE | AGENT_PROMPTS | SECURITY | OBSERVABILITY |
+|-------|-----------|-----------|---------------|------------|---------------|----------|---------------|
+| **North Star Metric** | ✓ Source | X | X | - | - | - | X |
+| **Agent Pipeline** | X Reqs | ✓ Source | X Detail | X Fallback | X Prompts | X Trust | X Trace |
+| **PipelineContext** | - | X | X | X | X | - | ✓ Source |
+| **Token Budgets** | - | X | X | - | X | - | X |
+| **Circuit Breakers** | - | X | X | ✓ Source | - | - | X |
+| **Safety Monitor** | X Reqs | X | - | X Crisis | ✓ Prompts | X Threats | X |
+| **Prompt Injection** | - | - | - | - | X Sanitize | ✓ Source | - |
+| **Streaming (SSE)** | - | X | X | - | - | - | X |
+| **Credential Mgmt** | - | - | - | - | - | ✓ Source | - |
+| **Emotional AI** | X Reqs | - | - | - | X Vocab | - | - |
+
+**Legend:**
+- ✓ Source = Authoritative source for this topic
+- X = References/uses this topic
+- X [qualifier] = References with specific focus (e.g., "X Crisis" = uses for crisis scenarios)
+- `-` = No direct reference
 
 ---
 
