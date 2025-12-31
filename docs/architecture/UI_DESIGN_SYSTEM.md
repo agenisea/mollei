@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-30-25 5:15PM PST
+> **Last Updated**: 12-30-25 6:30PM PST
 
 Production-ready design tokens, component specifications, and interaction patterns for Mollei's chat interface.
 
@@ -827,7 +827,109 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
 
 ## 4. Empty & Loading States
 
-### 4.1 Welcome State
+### 4.1 Error States
+
+```css
+/* Error container */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.error-state-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--color-error);
+  margin-bottom: var(--space-4);
+}
+
+.error-state-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.error-state-message {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  max-width: 32ch;
+  margin-bottom: var(--space-4);
+}
+
+/* Retry button */
+.retry-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: border-color var(--transition-base);
+  min-height: 44px; /* Touch target */
+  min-width: 44px;
+}
+
+.retry-button:hover {
+  border-color: var(--color-border-hover);
+}
+
+.retry-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Inline message error (failed to send) */
+.message-failed {
+  opacity: 0.7;
+}
+
+.message-failed .message-bubble {
+  border-color: var(--color-error);
+}
+
+.message-retry-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-error);
+}
+
+.message-retry-inline button {
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  color: var(--color-accent);
+  border: none;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  text-decoration: underline;
+  min-height: 44px; /* Touch target */
+}
+
+.message-retry-inline button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+```
+
+### 4.2 Welcome State
 
 ```css
 .chat-welcome {
@@ -907,6 +1009,80 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
 }
 ```
 
+### 4.4 Session Resume State
+
+When a user returns within the session window (30 minutes), show context continuity:
+
+```css
+/* Session resume banner */
+.session-resume {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-accent-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+}
+
+.session-resume-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.session-resume-text {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.session-resume-text strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-medium);
+}
+
+/* Dismiss button (optional) */
+.session-resume-dismiss {
+  margin-left: auto;
+  padding: var(--space-1);
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-resume-dismiss:hover {
+  color: var(--color-text-secondary);
+}
+
+.session-resume-dismiss:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+```
+
+**Example Usage:**
+```html
+<div class="session-resume" role="status" aria-live="polite">
+  <svg class="session-resume-icon" aria-hidden="true"><!-- Clock icon --></svg>
+  <p class="session-resume-text">
+    <strong>Welcome back.</strong> You were telling me about your conversation with your manager.
+  </p>
+  <button class="session-resume-dismiss" aria-label="Dismiss">
+    <svg aria-hidden="true"><!-- X icon --></svg>
+  </button>
+</div>
+```
+
 ---
 
 ## 5. Accessibility Patterns
@@ -940,7 +1116,59 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
 }
 ```
 
-### 5.2 Screen Reader Utilities
+### 5.2 Touch Target Guidelines
+
+Per WCAG 2.1 Success Criterion 2.5.5, all interactive elements must have a minimum touch target of **44×44 CSS pixels**.
+
+```css
+/* Touch target utility - apply to clickable elements */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* For icon-only buttons, ensure proper hit area */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-base);
+}
+
+.icon-button:hover {
+  background-color: var(--color-surface-elevated);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Spacing between adjacent touch targets */
+.touch-target-group {
+  display: flex;
+  gap: var(--space-2); /* 8px minimum between targets */
+}
+```
+
+**Critical Touch Target Elements:**
+| Element | Minimum Size | Notes |
+|---------|--------------|-------|
+| Send button | 44×44px | Circular, high-priority action |
+| Settings button | 44×44px | Icon button in header |
+| Menu button (mobile) | 44×44px | Hamburger icon |
+| Retry button | 44×44px | Error recovery action |
+| Crisis resource links | 44×44px | Safety-critical, must be easy to tap |
+| Dismiss buttons | 44×44px | Toast/banner dismissal |
+
+### 5.3 Screen Reader Utilities
 
 ```css
 /* Visually hidden but accessible */
@@ -968,11 +1196,19 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
 }
 ```
 
-### 5.3 ARIA Patterns
+### 5.4 ARIA Patterns
 
 ```html
+<!-- Skip link for keyboard users -->
+<a href="#chat-input" class="skip-link">Skip to message input</a>
+
 <!-- Chat container -->
 <main role="main" aria-label="Chat with Mollei">
+
+  <!-- Session resume banner (when applicable) -->
+  <div role="status" aria-live="polite" class="session-resume">
+    <p>Welcome back. You were telling me about your conversation with your manager.</p>
+  </div>
 
   <!-- Message list -->
   <div
@@ -981,22 +1217,74 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
     aria-label="Conversation"
     aria-relevant="additions"
   >
-    <!-- Messages rendered here -->
+    <!-- User message -->
+    <article aria-label="Your message" class="message message-user">
+      <div class="message-bubble">Message content...</div>
+      <time class="message-timestamp" datetime="2025-01-15T02:03:00">2:03 AM</time>
+    </article>
+
+    <!-- Mollei message -->
+    <article aria-label="Mollei's response" class="message message-mollei">
+      <div class="message-bubble">Response content...</div>
+      <time class="message-timestamp" datetime="2025-01-15T02:04:00">2:04 AM</time>
+    </article>
+
+    <!-- Mollei message with memory callback -->
+    <article aria-label="Mollei's response" class="message message-mollei">
+      <div class="message-bubble">
+        <span class="memory-callback" aria-label="Recalling previous conversation">
+          You mentioned last week that...
+        </span>
+        Rest of message...
+      </div>
+    </article>
+
+    <!-- Failed message -->
+    <article aria-label="Your message, failed to send" class="message message-user message-failed">
+      <div class="message-bubble">Failed message...</div>
+      <div class="message-retry-inline" role="alert">
+        <span>Failed to send.</span>
+        <button type="button">Retry</button>
+      </div>
+    </article>
   </div>
 
   <!-- Typing indicator -->
-  <div aria-live="polite" aria-atomic="true">
+  <div
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    class="typing-indicator-container"
+  >
+    <div class="typing-indicator" aria-hidden="true">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
     <span class="sr-only">Mollei is typing...</span>
   </div>
 
+  <!-- Streaming response indicator -->
+  <div
+    role="status"
+    aria-live="polite"
+    class="streaming-status"
+  >
+    <span class="sr-only">Mollei is responding...</span>
+  </div>
+
   <!-- Input -->
-  <form role="form" aria-label="Send a message">
+  <form role="form" aria-label="Send a message" id="chat-input">
+    <label for="message-input" class="sr-only">Message to Mollei</label>
     <textarea
+      id="message-input"
       aria-label="Message to Mollei"
+      aria-describedby="input-hint"
       placeholder="Type a message..."
     ></textarea>
+    <span id="input-hint" class="sr-only">Press Enter to send, Shift+Enter for new line</span>
     <button type="submit" aria-label="Send message">
-      <!-- Icon -->
+      <svg aria-hidden="true"><!-- Send icon --></svg>
     </button>
   </form>
 </main>
@@ -1007,8 +1295,36 @@ When safety_monitor detects crisis (severity ≥ 3), the UI shifts to crisis mod
   aria-label="Crisis support resources"
   aria-live="assertive"
 >
-  <!-- Resources -->
+  <h2 id="crisis-heading">You're not alone</h2>
+  <ul aria-labelledby="crisis-heading">
+    <li>
+      <a href="tel:988" aria-label="Call 988 Suicide and Crisis Lifeline">
+        988 Suicide & Crisis Lifeline
+      </a>
+    </li>
+    <li>
+      <a href="sms:741741" aria-label="Text HOME to 741741 for Crisis Text Line">
+        Crisis Text Line: Text HOME to 741741
+      </a>
+    </li>
+  </ul>
 </aside>
+
+<!-- AI transparency indicator (always visible) -->
+<div class="ai-indicator" role="note" aria-label="This is an AI companion">
+  <svg aria-hidden="true"><!-- AI icon --></svg>
+  <span>AI Companion</span>
+</div>
+
+<!-- Toast notifications container -->
+<div
+  role="region"
+  aria-label="Notifications"
+  aria-live="polite"
+  class="toast-container"
+>
+  <!-- Toasts inserted here -->
+</div>
 ```
 
 ---
@@ -1075,13 +1391,21 @@ Using **Lucide** for consistency with calm, outlined aesthetic.
 | Purpose | Icon | Usage |
 |---------|------|-------|
 | Send | `Send` | Chat input submit |
-| Close | `X` | Dismiss modals |
-| Menu | `Menu` | Mobile navigation |
+| Close | `X` | Dismiss modals, toasts, settings |
+| Menu | `Menu` | Mobile hamburger navigation |
+| Settings | `Settings` | Settings panel trigger |
 | Alert | `AlertCircle` | Crisis indicator |
 | Phone | `Phone` | Crisis hotline |
 | External | `ExternalLink` | Resource links |
-| Check | `Check` | Message sent confirmation |
+| Check | `Check` | Message sent, success toast |
 | Loader | `Loader2` | Loading state |
+| Brain | `Brain` | Memory callback indicator |
+| Bot | `Bot` | AI transparency indicator |
+| Clock | `Clock` | Session resume indicator |
+| RefreshCw | `RefreshCw` | Retry action |
+| Info | `Info` | Info toast |
+| AlertTriangle | `AlertTriangle` | Warning/confirmation |
+| ChevronDown | `ChevronDown` | Dropdown selector |
 
 ```css
 .icon-sm { width: 1rem; height: 1rem; }
@@ -1091,16 +1415,856 @@ Using **Lucide** for consistency with calm, outlined aesthetic.
 
 ---
 
-## 8. Implementation Checklist
+## 8. Header & Navigation
 
-### 8.1 Initial Setup
+### 8.1 Desktop Header
+
+```css
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.header-logo-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--color-accent);
+}
+
+.header-logo-text {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Settings button */
+.settings-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.settings-button:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.settings-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+```
+
+### 8.2 Mobile Header
+
+```css
+/* Mobile header (< 640px) */
+@media (max-width: 639px) {
+  .header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .header-logo-text {
+    font-size: var(--text-base);
+  }
+}
+
+/* Hamburger menu button */
+.menu-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+@media (max-width: 639px) {
+  .menu-button {
+    display: flex;
+  }
+}
+
+.menu-button:hover {
+  color: var(--color-text-primary);
+}
+
+.menu-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Hamburger icon animation */
+.hamburger {
+  width: 20px;
+  height: 14px;
+  position: relative;
+}
+
+.hamburger-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: currentColor;
+  transition: transform var(--transition-base), opacity var(--transition-base);
+}
+
+.hamburger-line:nth-child(1) { top: 0; }
+.hamburger-line:nth-child(2) { top: 6px; }
+.hamburger-line:nth-child(3) { top: 12px; }
+
+/* Open state */
+.menu-button[aria-expanded="true"] .hamburger-line:nth-child(1) {
+  transform: rotate(45deg) translate(4px, 4px);
+}
+
+.menu-button[aria-expanded="true"] .hamburger-line:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-button[aria-expanded="true"] .hamburger-line:nth-child(3) {
+  transform: rotate(-45deg) translate(4px, -4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hamburger-line {
+    transition: none;
+  }
+}
+```
+
+### 8.3 Settings Panel
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     SETTINGS PANEL                          │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Settings                                    [X]       │  │
+│  ├───────────────────────────────────────────────────────┤  │
+│  │                                                       │  │
+│  │  APPEARANCE                                           │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │ Theme                          [Dark ▾]         │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  │                                                       │  │
+│  │  ACCESSIBILITY                                        │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │ Reduce motion                  [Toggle: Off]    │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │ Larger text                    [Toggle: Off]    │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  │                                                       │  │
+│  │  ABOUT                                                │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │ Mollei is an AI companion. Always honest about  │  │  │
+│  │  │ being AI. ℹ️ Learn more                         │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  │                                                       │  │
+│  │  Version 0.1.0                                        │  │
+│  │                                                       │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+```css
+/* Settings panel (modal) */
+.settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background-color: var(--color-background);
+  border-left: 1px solid var(--color-border);
+  z-index: var(--z-modal);
+  transform: translateX(100%);
+  transition: transform var(--transition-slow);
+  overflow-y: auto;
+}
+
+.settings-panel[data-open="true"] {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-panel {
+    transition: none;
+  }
+}
+
+.settings-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-panel-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.settings-panel-close {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.settings-panel-close:hover {
+  color: var(--color-text-primary);
+}
+
+.settings-panel-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.settings-panel-content {
+  padding: var(--space-4);
+}
+
+.settings-section {
+  margin-bottom: var(--space-6);
+}
+
+.settings-section-title {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-3);
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+
+.settings-item-label {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: var(--color-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.toggle[aria-checked="true"] {
+  background-color: var(--color-accent);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: var(--color-text-primary);
+  border-radius: var(--radius-full);
+  transition: transform var(--transition-base);
+}
+
+.toggle[aria-checked="true"]::after {
+  transform: translateX(20px);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle,
+  .toggle::after {
+    transition: none;
+  }
+}
+
+/* Settings backdrop */
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: var(--z-modal-backdrop);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.settings-backdrop[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+```
+
+---
+
+## 9. Memory & AI Transparency
+
+### 9.1 Memory Callback Visual Treatment
+
+When Mollei references previous conversation (the "memory wow" moment), visually distinguish it:
+
+```css
+/* Memory callback text styling */
+.memory-callback {
+  color: var(--color-accent-muted);
+  font-style: italic;
+}
+
+/* Optional: subtle background for memory references */
+.memory-callback-highlighted {
+  background-color: var(--color-accent-subtle);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+/* Memory indicator icon (optional) */
+.memory-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-accent-muted);
+  margin-bottom: var(--space-1);
+}
+
+.memory-indicator-icon {
+  width: 14px;
+  height: 14px;
+}
+```
+
+**Usage Pattern:**
+```html
+<div class="message-bubble">
+  <span class="memory-indicator">
+    <svg class="memory-indicator-icon" aria-hidden="true"><!-- Brain/memory icon --></svg>
+    <span class="sr-only">Remembering:</span>
+  </span>
+  <span class="memory-callback">You mentioned last week that your manager was being difficult.</span>
+  That sounds really frustrating. How has the situation evolved?
+</div>
+```
+
+### 9.2 AI Transparency Indicator
+
+Per BRAND_GUIDELINES.md: "Honest About What We Are" — always transparent about being AI.
+
+```css
+/* AI indicator - always visible in header or footer */
+.ai-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.ai-indicator-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-accent);
+}
+
+/* Placement options */
+.ai-indicator--header {
+  /* In header, next to logo */
+}
+
+.ai-indicator--footer {
+  position: fixed;
+  bottom: var(--space-4);
+  left: var(--space-4);
+  z-index: var(--z-sticky);
+}
+
+.ai-indicator--inline {
+  /* In welcome message area */
+  margin-bottom: var(--space-2);
+}
+```
+
+**Placement:**
+| Location | When to Use |
+|----------|-------------|
+| Header | Always visible, recommended |
+| Footer | Alternative if header is crowded |
+| Welcome message | First-time user emphasis |
+| Settings panel | Detailed explanation available |
+
+---
+
+## 10. Toast Notifications
+
+Non-blocking notifications for async feedback.
+
+### 10.1 Toast Container
+
+```css
+.toast-container {
+  position: fixed;
+  bottom: calc(var(--input-height) + var(--space-8));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+  max-width: calc(100% - var(--space-8));
+}
+
+@media (min-width: 640px) {
+  .toast-container {
+    bottom: var(--space-4);
+    right: var(--space-4);
+    left: auto;
+    transform: none;
+    align-items: flex-end;
+  }
+}
+```
+
+### 10.2 Toast Variants
+
+```css
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  pointer-events: auto;
+  animation: toast-enter 200ms ease-out;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-exit {
+  animation: toast-exit 150ms ease-in forwards;
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+  .toast-exit {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* Toast variants */
+.toast--success {
+  border-color: var(--color-success);
+}
+
+.toast--success .toast-icon {
+  color: var(--color-success);
+}
+
+.toast--error {
+  border-color: var(--color-error);
+}
+
+.toast--error .toast-icon {
+  color: var(--color-error);
+}
+
+.toast--info {
+  border-color: var(--color-info);
+}
+
+.toast--info .toast-icon {
+  color: var(--color-info);
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-dismiss {
+  width: 44px;
+  height: 44px;
+  margin: calc(-1 * var(--space-2));
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.toast-dismiss:hover {
+  color: var(--color-text-secondary);
+}
+
+.toast-dismiss:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+```
+
+**Toast Use Cases:**
+| Event | Toast Type | Message |
+|-------|------------|---------|
+| Message sent (offline) | Info | "Message queued. Will send when online." |
+| Message failed | Error | "Couldn't send message. Tap to retry." |
+| Session resumed | Info | "Welcome back. Continuing conversation." |
+| Settings saved | Success | "Settings updated." |
+
+---
+
+## 11. Modal & Dialog Patterns
+
+### 11.1 Modal Base
+
+```css
+/* Modal backdrop */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: var(--z-modal-backdrop);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.modal-backdrop[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Modal container */
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  z-index: var(--z-modal);
+  width: calc(100% - var(--space-8));
+  max-width: 480px;
+  max-height: calc(100vh - var(--space-16));
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-base), visibility var(--transition-base), transform var(--transition-base);
+}
+
+.modal[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal {
+    transition: none;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.modal-close {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  margin: calc(-1 * var(--space-2));
+}
+
+.modal-close:hover {
+  color: var(--color-text-primary);
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.modal-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--space-16) - 120px);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+```
+
+### 11.2 Confirmation Dialog
+
+```css
+.confirmation-dialog .modal-body {
+  text-align: center;
+  padding: var(--space-6);
+}
+
+.confirmation-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--space-4);
+  color: var(--color-warning);
+}
+
+.confirmation-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.confirmation-message {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+/* Action buttons */
+.button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  min-height: 44px;
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.button-primary:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.button-primary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  min-height: 44px;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: border-color var(--transition-base);
+}
+
+.button-secondary:hover {
+  border-color: var(--color-border-hover);
+}
+
+.button-secondary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.button-danger {
+  background-color: var(--color-error);
+}
+
+.button-danger:hover {
+  background-color: #dc2626; /* error-hover */
+}
+```
+
+### 11.3 Modal ARIA Pattern
+
+```html
+<!-- Modal trigger -->
+<button
+  type="button"
+  aria-haspopup="dialog"
+  aria-expanded="false"
+  aria-controls="settings-modal"
+>
+  Settings
+</button>
+
+<!-- Modal -->
+<div
+  id="settings-modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="settings-title"
+  aria-describedby="settings-description"
+  data-open="false"
+>
+  <div class="modal-header">
+    <h2 id="settings-title" class="modal-title">Settings</h2>
+    <button
+      type="button"
+      class="modal-close"
+      aria-label="Close settings"
+    >
+      <svg aria-hidden="true"><!-- X icon --></svg>
+    </button>
+  </div>
+  <div class="modal-body">
+    <p id="settings-description">Customize your Mollei experience.</p>
+    <!-- Settings content -->
+  </div>
+</div>
+
+<!-- Focus trap: first and last focusable elements should loop -->
+```
+
+---
+
+## 12. Implementation Checklist
+
+### 12.1 Initial Setup
 
 - [ ] Add CSS custom properties to `globals.css`
 - [ ] Install Geist font (`@fontsource/geist-sans`, `@fontsource/geist-mono`)
 - [ ] Install Lucide icons (`lucide-react`)
 - [ ] Configure Tailwind (if using) to use CSS variables
 
-### 8.2 Core Components
+### 12.2 Core Components
 
 - [ ] Chat container with scroll behavior
 - [ ] Message bubbles (user + Mollei variants)
@@ -1109,25 +2273,48 @@ Using **Lucide** for consistency with calm, outlined aesthetic.
 - [ ] Send button with states
 - [ ] Streaming cursor indicator
 
-### 8.3 Crisis Components
+### 12.3 Crisis Components
 
 - [ ] Crisis resource card
 - [ ] Resource links with proper ARIA
 
-### 8.4 States
+### 12.4 States
 
 - [ ] Welcome/empty state
 - [ ] Loading skeleton
-- [ ] Error state
+- [ ] Error state with retry button
 - [ ] Streaming state
+- [ ] Session resume banner
 
-### 8.5 Validation
+### 12.5 Header & Navigation
+
+- [ ] Desktop header with logo and settings
+- [ ] Mobile header with hamburger menu
+- [ ] Settings panel (slide-in modal)
+- [ ] Toggle switches for settings
+
+### 12.6 Memory & AI Transparency
+
+- [ ] Memory callback visual treatment
+- [ ] AI transparency indicator in header
+- [ ] "Always AI" messaging in settings
+
+### 12.7 Feedback Components
+
+- [ ] Toast notification container
+- [ ] Toast variants (success, error, info)
+- [ ] Modal/dialog base component
+- [ ] Confirmation dialog pattern
+
+### 12.8 Validation
 
 - [ ] Color contrast meets WCAG AA (4.5:1 minimum)
 - [ ] Reduced motion preference respected
+- [ ] All interactive elements have 44×44px touch targets
 - [ ] All interactive elements have focus states
 - [ ] Screen reader testing completed
 - [ ] Mobile responsive verified
+- [ ] Keyboard navigation works throughout
 
 ---
 
