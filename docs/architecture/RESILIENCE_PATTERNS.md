@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 2:00PM PST
+> **Last Updated**: 12-30-25 6:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -12,9 +12,15 @@
 
 ## 3.1 Circuit Breaker Configuration
 
+> **SOLID Compliance**: This module follows the Dependency Inversion Principle (DIP) by defining an `ICircuitBreaker` interface that high-level modules depend on, rather than concrete implementations.
+
+### 3.1.1 Circuit Breaker Interface (DIP)
+
 ```typescript
 // lib/resilience/circuit-breaker.ts
 import { AGENT_IDS, CIRCUIT_BREAKER } from "../utils/constants";
+
+type CircuitState = "closed" | "open" | "half_open";
 
 interface CircuitBreakerConfig {
   failureThreshold: number;
@@ -22,17 +28,72 @@ interface CircuitBreakerConfig {
   halfOpenRequests: number;
 }
 
-const CIRCUIT_BREAKER_CONFIGS: Record<string, CircuitBreakerConfig> = {
-  [AGENT_IDS.MOOD_SENSOR]: { failureThreshold: 5, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
-  [AGENT_IDS.MEMORY_AGENT]: { failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
-  [AGENT_IDS.SAFETY_MONITOR]: { failureThreshold: 5, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
-  [AGENT_IDS.EMOTION_REASONER]: { failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
-  [AGENT_IDS.RESPONSE_GENERATOR]: { failureThreshold: 2, recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS, halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS },
-};
+/**
+ * Circuit breaker interface for dependency injection.
+ * Enables swapping implementations for testing and alternative backends.
+ *
+ * @example
+ * // Production: Redis-backed circuit breaker
+ * const breaker: ICircuitBreaker = new CircuitBreaker("mood_sensor");
+ *
+ * // Testing: In-memory circuit breaker
+ * const breaker: ICircuitBreaker = new InMemoryCircuitBreaker();
+ */
+export interface ICircuitBreaker {
+  allowRequest(): boolean;
+  recordSuccess(): void;
+  recordFailure(): void;
+  getState(): CircuitState;
+}
 
-type CircuitState = "closed" | "open" | "half_open";
+/**
+ * Factory function for creating circuit breakers.
+ * Abstracts instantiation for dependency injection.
+ */
+export type CircuitBreakerFactory = (agentId: string) => ICircuitBreaker;
 
-export class CircuitBreaker {
+/**
+ * Default factory using the standard CircuitBreaker implementation.
+ */
+export const defaultCircuitBreakerFactory: CircuitBreakerFactory = (agentId) =>
+  new CircuitBreaker(agentId);
+```
+
+### 3.1.2 Default Implementation
+
+```typescript
+// lib/resilience/circuit-breaker.ts (continued)
+import { CIRCUIT_BREAKER_OVERRIDES } from "../utils/constants";
+
+/**
+ * Build circuit breaker configs by merging defaults with per-agent overrides.
+ * Overrides are defined in lib/utils/constants.ts (CIRCUIT_BREAKER_OVERRIDES).
+ */
+function buildCircuitBreakerConfigs(): Record<string, CircuitBreakerConfig> {
+  const defaultConfig: CircuitBreakerConfig = {
+    failureThreshold: CIRCUIT_BREAKER.FAILURE_THRESHOLD,
+    recoveryTimeoutMs: CIRCUIT_BREAKER.RESET_TIMEOUT_MS,
+    halfOpenRequests: CIRCUIT_BREAKER.HALF_OPEN_MAX_REQUESTS,
+  };
+
+  const configs: Record<string, CircuitBreakerConfig> = {};
+  for (const agentId of Object.values(AGENT_IDS)) {
+    const override = CIRCUIT_BREAKER_OVERRIDES[agentId];
+    configs[agentId] = {
+      ...defaultConfig,
+      ...(override ?? {}),
+    };
+  }
+  return configs;
+}
+
+const CIRCUIT_BREAKER_CONFIGS = buildCircuitBreakerConfigs();
+
+/**
+ * Production circuit breaker with per-agent configuration.
+ * Implements the standard circuit breaker pattern with closed/open/half-open states.
+ */
+export class CircuitBreaker implements ICircuitBreaker {
   private state: CircuitState = "closed";
   private failureCount = 0;
   private lastFailureTime = 0;
@@ -78,6 +139,94 @@ export class CircuitBreaker {
 
   getState(): CircuitState {
     return this.state;
+  }
+}
+```
+
+### 3.1.3 Test Implementation
+
+```typescript
+// lib/resilience/circuit-breaker-test.ts
+
+import type { ICircuitBreaker } from "./circuit-breaker";
+
+type CircuitState = "closed" | "open" | "half_open";
+
+/**
+ * In-memory circuit breaker for unit testing.
+ * Allows explicit state manipulation for test scenarios.
+ */
+export class InMemoryCircuitBreaker implements ICircuitBreaker {
+  private state: CircuitState = "closed";
+  private failureCount = 0;
+
+  constructor(
+    private failureThreshold: number = 3,
+    initialState: CircuitState = "closed"
+  ) {
+    this.state = initialState;
+  }
+
+  allowRequest(): boolean {
+    return this.state !== "open";
+  }
+
+  recordSuccess(): void {
+    this.failureCount = 0;
+    this.state = "closed";
+  }
+
+  recordFailure(): void {
+    this.failureCount++;
+    if (this.failureCount >= this.failureThreshold) {
+      this.state = "open";
+    }
+  }
+
+  getState(): CircuitState {
+    return this.state;
+  }
+
+  // Test helpers
+  forceOpen(): void {
+    this.state = "open";
+  }
+
+  forceClosed(): void {
+    this.state = "closed";
+    this.failureCount = 0;
+  }
+
+  forceHalfOpen(): void {
+    this.state = "half_open";
+  }
+}
+
+/**
+ * Always-open circuit breaker for failure testing.
+ */
+export class AlwaysOpenCircuitBreaker implements ICircuitBreaker {
+  allowRequest(): boolean {
+    return false;
+  }
+  recordSuccess(): void {}
+  recordFailure(): void {}
+  getState(): CircuitState {
+    return "open";
+  }
+}
+
+/**
+ * Always-closed circuit breaker for success path testing.
+ */
+export class AlwaysClosedCircuitBreaker implements ICircuitBreaker {
+  allowRequest(): boolean {
+    return true;
+  }
+  recordSuccess(): void {}
+  recordFailure(): void {}
+  getState(): CircuitState {
+    return "closed";
   }
 }
 ```
@@ -142,7 +291,7 @@ export async function responseGeneratorWithFallback(
       model: anthropic(AGENT_MODELS.CRISIS_ESCALATION),
       system: systemPrompt,
       prompt: state.userMessage,
-      maxTokens: 2000, // Extended budget for crisis responses
+      maxTokens: TOKEN_BUDGETS.CRISIS_RESPONSE,
       abortSignal: AbortSignal.timeout(TIMEOUTS.PIPELINE_TOTAL),
     });
     return { response: text, modelUsed: AGENT_MODELS.CRISIS_ESCALATION };
@@ -213,9 +362,9 @@ import { Redis } from "ioredis";
 import { MolleiState } from "../pipeline/state";
 import { updateSessionContext, insertConversationTurn } from "../db/repositories";
 import { logError } from "../server/monitoring";
+import { IDEMPOTENCY } from "../utils/constants";
 
 const redis = new Redis(process.env.REDIS_URL!);
-const OPERATION_TTL_SECONDS = 3600; // 1 hour
 
 export async function memoryUpdateNode(state: MolleiState): Promise<Partial<MolleiState>> {
   const operationKey = `mollei:op:${state.sessionId}:${state.turnNumber}`;
@@ -232,7 +381,7 @@ export async function memoryUpdateNode(state: MolleiState): Promise<Partial<Moll
       updateSessionContext(state),
       insertConversationTurn(state),
     ]);
-    await redis.setex(operationKey, OPERATION_TTL_SECONDS, "1");
+    await redis.setex(operationKey, IDEMPOTENCY.OPERATION_TTL_SECONDS, "1");
   } catch (error) {
     logError(state.traceId, "memory_update", error);
     // Don't throw - memory update shouldn't block response

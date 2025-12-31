@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-29-25 1:55PM PST
+> **Last Updated**: 12-30-25 6:00PM PST
 
 ---
 
@@ -261,6 +261,8 @@ export const TOKEN_BUDGETS = {
   RESPONSE_GENERATOR: 1000,
   // Phase 2 extensions
   LONG_TERM_MEMORY: 500,
+  // Crisis handling (extended budget)
+  CRISIS_RESPONSE: 2000,
 } as const;
 
 /**
@@ -484,6 +486,72 @@ export const SANITIZATION = {
   CONTEXT_PREVIEW_LENGTH: 500, // Max characters for logging context
   TRUNCATION_SUFFIX: "...",
 } as const;
+
+// ─────────────────────────────────────────────────────────────
+// Self-Correction & Quality Gates
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Retry limits for self-correction loops.
+ * Prevents infinite loops while allowing quality improvement.
+ */
+export const RETRY_LIMITS = {
+  RESPONSE_ATTEMPTS: 2,           // Max response generation retries
+  SAFETY_ATTEMPTS: 2,             // Max safety recheck iterations
+  MAKER_CHECKER_ITERATIONS: 3,    // Max maker-checker validation loops
+} as const;
+
+/**
+ * Quality thresholds for routing and evaluation.
+ * Used by routing functions and response evaluators.
+ */
+export const QUALITY_THRESHOLDS = {
+  // Crisis confidence gates
+  CRISIS_CONFIDENCE_HIGH: 0.8,    // High confidence → immediate crisis response
+  CRISIS_CONFIDENCE_RECHECK: 0.7, // Below this → recheck with more context
+
+  // Response quality thresholds
+  RESPONSE_NORMAL: 0.75,          // Normal quality bar
+  RESPONSE_LOW: 0.6,              // Lowered bar for ambiguous input
+  RESPONSE_FLOOR: 0.5,            // Absolute minimum threshold
+
+  // Evaluation minimums
+  EMPATHY_MIN: 0.7,               // Minimum empathy score
+  TONE_ALIGNMENT_MIN: 0.7,        // Minimum tone alignment score
+  GROUNDEDNESS_MIN: 0.8,          // Minimum groundedness score
+
+  // Adaptive adjustments (subtracted from threshold)
+  LOW_CONFIDENCE_PENALTY: 0.15,   // When emotionConfidence < 0.6
+  AMBIGUOUS_INPUT_PENALTY: 0.10,  // When inputAmbiguous = true
+  MIXED_EMOTION_PENALTY: 0.05,    // When secondary emotion with high intensity
+} as const;
+
+/**
+ * Two-stage emotion analysis thresholds.
+ * Stage 1: Fast local sentiment. Stage 2: LLM (only if needed).
+ */
+export const TWO_STAGE = {
+  CONFIDENCE_THRESHOLD: 0.8,      // Skip LLM if local confidence >= this
+  SEVERITY_THRESHOLD: 3,          // Always use LLM if severity >= this
+} as const;
+
+/**
+ * Idempotency configuration for memory updates.
+ */
+export const IDEMPOTENCY = {
+  OPERATION_TTL_SECONDS: 3600,    // 1 hour - Redis key expiry
+} as const;
+
+/**
+ * Per-agent circuit breaker overrides.
+ * Safety-critical agents get higher thresholds (more tolerance).
+ * Response generator gets lower threshold (critical path, fail fast).
+ */
+export const CIRCUIT_BREAKER_OVERRIDES: Partial<Record<AgentId, { failureThreshold: number }>> = {
+  [AGENT_IDS.MOOD_SENSOR]: { failureThreshold: 5 },
+  [AGENT_IDS.SAFETY_MONITOR]: { failureThreshold: 5 },
+  [AGENT_IDS.RESPONSE_GENERATOR]: { failureThreshold: 2 },
+} as const;
 ```
 
 ---
@@ -549,10 +617,17 @@ export const anthropicClient = createAnthropic({
 
 ### `lib/agents/base.ts`
 
+> **SOLID Compliance**: `BaseAgent` follows the Dependency Inversion Principle (DIP) by depending on the `ICircuitBreaker` interface rather than the concrete `CircuitBreaker` class. This enables test doubles and alternative implementations.
+
 ```typescript
 // lib/agents/base.ts
 import { MolleiState } from "../pipeline/state";
-import { CircuitBreaker } from "../resilience/circuit-breaker";
+import {
+  ICircuitBreaker,
+  CircuitBreaker,
+  CircuitBreakerFactory,
+  defaultCircuitBreakerFactory,
+} from "../resilience/circuit-breaker";
 import { traceAgentStage, traceLlmCall } from "../infrastructure/trace";
 import { logFallback } from "../server/monitoring";
 
@@ -565,14 +640,53 @@ export interface AgentConfig {
 
 export type FallbackFn = (state: MolleiState) => Partial<MolleiState>;
 
+/**
+ * Options for BaseAgent construction.
+ * Supports dependency injection for testing and alternative implementations.
+ */
+export interface AgentOptions {
+  circuitBreaker?: ICircuitBreaker;
+  circuitBreakerFactory?: CircuitBreakerFactory;
+}
+
+/**
+ * Abstract base class for all Mollei agents.
+ *
+ * Provides:
+ * - Circuit breaker resilience (injectable via ICircuitBreaker)
+ * - Timeout handling with fallback
+ * - Latency tracking
+ * - Error logging
+ *
+ * @example
+ * // Production usage (default circuit breaker)
+ * class MoodSensor extends BaseAgent {
+ *   constructor() {
+ *     super(config, fallbackFn);
+ *   }
+ * }
+ *
+ * @example
+ * // Testing with injected circuit breaker
+ * class MoodSensor extends BaseAgent {
+ *   constructor(options?: AgentOptions) {
+ *     super(config, fallbackFn, options);
+ *   }
+ * }
+ * const agent = new MoodSensor({ circuitBreaker: new AlwaysClosedCircuitBreaker() });
+ */
 export abstract class BaseAgent {
-  protected circuitBreaker: CircuitBreaker;
+  protected circuitBreaker: ICircuitBreaker;
 
   constructor(
     protected config: AgentConfig,
-    protected fallbackFn: FallbackFn
+    protected fallbackFn: FallbackFn,
+    options?: AgentOptions
   ) {
-    this.circuitBreaker = new CircuitBreaker(config.agentId);
+    // DIP: Accept interface, default to concrete implementation
+    this.circuitBreaker =
+      options?.circuitBreaker ??
+      (options?.circuitBreakerFactory ?? defaultCircuitBreakerFactory)(config.agentId);
   }
 
   protected abstract execute(state: MolleiState): Promise<Partial<MolleiState>>;
@@ -625,6 +739,36 @@ export abstract class BaseAgent {
     };
   }
 }
+```
+
+**Usage in Tests:**
+
+```typescript
+// __tests__/agents/mood-sensor.test.ts
+import { MoodSensor } from "@/lib/agents/mood-sensor";
+import { AlwaysClosedCircuitBreaker, AlwaysOpenCircuitBreaker } from "@/lib/resilience/circuit-breaker-test";
+
+describe("MoodSensor", () => {
+  it("should return fallback when circuit is open", async () => {
+    const agent = new MoodSensor({
+      circuitBreaker: new AlwaysOpenCircuitBreaker(),
+    });
+
+    const result = await agent.invoke(mockState);
+
+    expect(result.userEmotion).toEqual(FALLBACK_EMOTION);
+  });
+
+  it("should execute normally when circuit is closed", async () => {
+    const agent = new MoodSensor({
+      circuitBreaker: new AlwaysClosedCircuitBreaker(),
+    });
+
+    const result = await agent.invoke(mockState);
+
+    expect(result.userEmotion?.primary).toBeDefined();
+  });
+});
 ```
 
 ---
@@ -1053,6 +1197,173 @@ export async function GET(
   });
 }
 ```
+
+---
+
+## 5.5 SOLID Design Principles
+
+This architecture adheres to SOLID principles throughout. This section documents how each principle is implemented.
+
+### 5.5.1 Single Responsibility Principle (SRP)
+
+> *A class should have only one reason to change.*
+
+| Component | Single Responsibility | Changes When |
+|-----------|----------------------|--------------|
+| `MoodSensor` | Detect user emotional state | Emotion detection logic changes |
+| `MemoryAgent` | Retrieve conversation context | Context retrieval strategy changes |
+| `SafetyMonitor` | Detect crisis signals | Crisis detection rules change |
+| `EmotionReasoner` | Compute Mollei's emotional response | Response emotion logic changes |
+| `ResponseGenerator` | Generate text response | Response generation changes |
+| `BaseAgent` | Agent lifecycle + resilience | Resilience patterns change |
+| `CircuitBreaker` | Circuit state management | Circuit breaker logic changes |
+| `PipelineOrchestrator` | Execution flow coordination | Pipeline structure changes |
+
+**Key Pattern**: Each agent file contains exactly one agent class with one job.
+
+### 5.5.2 Open/Closed Principle (OCP)
+
+> *Software entities should be open for extension but closed for modification.*
+
+**Implementation**:
+
+```typescript
+// PipelineModule interface enables extension without modification
+export interface PipelineModule<TInput = unknown, TOutput = unknown> {
+  execute(input: TInput, context: PipelineContext): Promise<TOutput>
+}
+
+// Add new agents by implementing interface, not modifying orchestrator
+class NewCustomAgent implements PipelineModule<MolleiState, Partial<MolleiState>> {
+  async execute(state: MolleiState, ctx: PipelineContext) {
+    // New functionality without changing existing code
+  }
+}
+```
+
+**Extension Points**:
+- `PipelineModule` — Add new pipeline stages
+- `BaseAgent` — Extend for new agents with built-in resilience
+- `EmotionBackend` — Swap emotion detection implementations
+- `ICircuitBreaker` — Provide alternative circuit breaker strategies
+
+### 5.5.3 Liskov Substitution Principle (LSP)
+
+> *Objects of a superclass should be replaceable with objects of its subclasses without breaking the application.*
+
+**Implementation**:
+
+All agents extend `BaseAgent` with consistent contracts:
+
+```typescript
+// All agents satisfy the same behavioral contract
+abstract class BaseAgent {
+  abstract execute(state: MolleiState): Promise<Partial<MolleiState>>;
+  async invoke(state: MolleiState): Promise<Partial<MolleiState>> { /* ... */ }
+}
+
+// Substitutable agents
+class MoodSensor extends BaseAgent { /* ... */ }
+class SafetyMonitor extends BaseAgent { /* ... */ }
+class EmotionReasoner extends BaseAgent { /* ... */ }
+```
+
+The orchestrator treats all agents uniformly through the `PipelineModule` interface:
+
+```typescript
+// Orchestrator doesn't care which agent it's running
+const results = await runParallelModules([
+  new MoodSensorModule(),
+  new MemoryAgentModule(),
+  new SafetyMonitorModule(),
+], state, ctx);
+```
+
+### 5.5.4 Interface Segregation Principle (ISP)
+
+> *Clients should not be forced to depend on interfaces they don't use.*
+
+**Implementation**:
+
+Small, focused interfaces:
+
+| Interface | Methods | Purpose |
+|-----------|---------|---------|
+| `PipelineModule` | `execute()` | Pipeline stage contract |
+| `ICircuitBreaker` | `allowRequest()`, `recordSuccess()`, `recordFailure()`, `getState()` | Circuit breaker contract |
+| `AgentConfig` | 4 fields | Agent configuration |
+| `PipelineContext` | 5 fields | Request-scoped context |
+| `StreamObserver` | `onStreamStart()`, `onStreamEnd()`, `onUpdateSent()`, `onAbort()` | SSE observability |
+
+**Anti-pattern avoided**: No "god interfaces" with 20+ methods that force implementers to stub unused methods.
+
+### 5.5.5 Dependency Inversion Principle (DIP)
+
+> *High-level modules should not depend on low-level modules. Both should depend on abstractions.*
+
+**Implementation**:
+
+```typescript
+// HIGH-LEVEL: BaseAgent depends on abstraction
+export abstract class BaseAgent {
+  protected circuitBreaker: ICircuitBreaker;  // ← Interface, not concrete class
+
+  constructor(config: AgentConfig, fallbackFn: FallbackFn, options?: AgentOptions) {
+    this.circuitBreaker = options?.circuitBreaker ?? defaultCircuitBreakerFactory(config.agentId);
+  }
+}
+
+// LOW-LEVEL: Concrete implementations
+class CircuitBreaker implements ICircuitBreaker { /* ... */ }
+class InMemoryCircuitBreaker implements ICircuitBreaker { /* ... */ }
+```
+
+**DIP in SSE Streaming**:
+
+```typescript
+// Pipeline context depends on abstraction
+interface PipelineContext {
+  progressReporter?: ProgressReporter;  // ← Interface, not SSEOrchestrator
+}
+
+// Adapter bridges concrete to abstract
+const progressReporter = createSSEProgressAdapter(orchestrator);
+```
+
+### 5.5.6 SOLID Compliance Summary
+
+| Principle | Status | Key Evidence |
+|-----------|--------|--------------|
+| **S** — Single Responsibility | ✅ | One agent = one job; `BaseAgent` handles only lifecycle |
+| **O** — Open/Closed | ✅ | `PipelineModule` interface enables extension without modification |
+| **L** — Liskov Substitution | ✅ | All agents extend `BaseAgent` with consistent contracts |
+| **I** — Interface Segregation | ✅ | Small, focused interfaces (`PipelineModule`, `ICircuitBreaker`) |
+| **D** — Dependency Inversion | ✅ | High-level modules depend on `ICircuitBreaker`, `ProgressReporter` abstractions |
+
+### 5.5.7 Testing Benefits of SOLID
+
+SOLID compliance enables:
+
+1. **Unit Testing**: Inject test doubles via interfaces
+   ```typescript
+   const agent = new MoodSensor({ circuitBreaker: new AlwaysOpenCircuitBreaker() });
+   ```
+
+2. **Isolation**: Test agents independently without full pipeline
+   ```typescript
+   const result = await moodSensor.invoke(mockState);
+   ```
+
+3. **Mocking**: Replace external dependencies with test implementations
+   ```typescript
+   const mockEmotionBackend: EmotionBackend = { analyze: vi.fn() };
+   ```
+
+4. **Extension**: Add new agents without modifying existing tests
+   ```typescript
+   // New agent just implements PipelineModule — existing tests unchanged
+   class CustomAgent implements PipelineModule { /* ... */ }
+   ```
 
 ---
 

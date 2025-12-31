@@ -2,7 +2,7 @@
 
 > **Parent**: [ARCHITECTURE_BLUEPRINT.md](../ARCHITECTURE_BLUEPRINT.md)
 > **Tier**: 2 — Implementation
-> **Last Updated**: 12-28-25 3:00PM PST
+> **Last Updated**: 12-30-25 6:00PM PST
 
 > **Constants Reference**: All magic values in this document should map to constants defined in
 > `lib/utils/constants.ts`. See [IMPLEMENTATION_SCAFFOLD.md §5.2](IMPLEMENTATION_SCAFFOLD.md#52-configuration--constants)
@@ -499,6 +499,12 @@ export async function runMolleiPipeline(
 
 ```typescript
 // lib/pipeline/routing.ts
+import {
+  AGENT_IDS,
+  CRISIS_SEVERITY,
+  QUALITY_THRESHOLDS,
+  RETRY_LIMITS,
+} from "../utils/constants";
 
 /**
  * Route after safety_monitor based on confidence and severity
@@ -510,17 +516,21 @@ export function routeAfterSafetyMonitor(state: MolleiState): string {
   const { crisisDetected, crisisConfidence, crisisSeverity, safetyAttempts } = state
 
   // High confidence crisis → immediate crisis response
-  if (crisisDetected && crisisConfidence >= 0.8) {
+  if (crisisDetected && crisisConfidence >= QUALITY_THRESHOLDS.CRISIS_CONFIDENCE_HIGH) {
     return 'crisis_response'
   }
 
   // Low confidence but elevated severity → recheck with conversation history
-  if (crisisSeverity >= 3 && crisisConfidence < 0.7 && safetyAttempts < 2) {
+  if (
+    crisisSeverity >= CRISIS_SEVERITY.SUGGEST_HUMAN &&
+    crisisConfidence < QUALITY_THRESHOLDS.CRISIS_CONFIDENCE_RECHECK &&
+    safetyAttempts < RETRY_LIMITS.SAFETY_ATTEMPTS
+  ) {
     return 'recheck_safety'
   }
 
   // Ambiguous signals that need more context
-  if (state.ambiguousSafetySignals.length > 0 && safetyAttempts < 1) {
+  if (state.ambiguousSafetySignals.length > 0 && safetyAttempts < RETRY_LIMITS.SAFETY_ATTEMPTS - 1) {
     return 'recheck_safety'
   }
 
@@ -558,6 +568,7 @@ export async function recheckSafety(
 
 ```typescript
 // lib/pipeline/response-evaluator.ts
+import { QUALITY_THRESHOLDS } from "../utils/constants";
 
 interface RetryFeedback {
   empathyGaps?: string[]       // "User expressed grief, response was too solution-focused"
@@ -578,8 +589,8 @@ export async function evaluateResponseQuality(
 
   // Adaptive threshold: lower bar when input was unclear
   const qualityThreshold = (emotionConfidence < 0.6 || inputAmbiguous)
-    ? 0.6   // Lower bar - input was unclear, do our best
-    : 0.75  // Normal bar - input was clear, expect quality
+    ? QUALITY_THRESHOLDS.RESPONSE_LOW    // Lower bar - input was unclear
+    : QUALITY_THRESHOLDS.RESPONSE_NORMAL // Normal bar - input was clear
 
   const evaluation = await evaluateWithLLM({
     userEmotion,
@@ -595,16 +606,16 @@ export async function evaluateResponseQuality(
   // Build specific feedback for retry
   const feedback: RetryFeedback = {}
 
-  if (evaluation.empathyScore < 0.7) {
+  if (evaluation.empathyScore < QUALITY_THRESHOLDS.EMPATHY_MIN) {
     feedback.empathyGaps = evaluation.empathyIssues
   }
   if (evaluation.missedEmotionalCues.length > 0) {
     feedback.missedCues = evaluation.missedEmotionalCues
   }
-  if (evaluation.toneAlignment < 0.7) {
+  if (evaluation.toneAlignment < QUALITY_THRESHOLDS.TONE_ALIGNMENT_MIN) {
     feedback.toneIssues = evaluation.toneProblems
   }
-  if (evaluation.groundedness < 0.8) {
+  if (evaluation.groundedness < QUALITY_THRESHOLDS.GROUNDEDNESS_MIN) {
     feedback.groundednessIssues = evaluation.unsupportedClaims
   }
 
@@ -644,8 +655,7 @@ export function buildPromptWithFeedback(
 
 ```typescript
 // lib/pipeline/response-generator-with-retry.ts
-
-const MAX_RESPONSE_ATTEMPTS = 2
+import { RETRY_LIMITS } from "../utils/constants";
 
 /**
  * Generate response with self-correction loop
@@ -656,7 +666,7 @@ export async function generateResponseWithRetry(
 ): Promise<MolleiState> {
   let currentState = state
 
-  while (currentState.responseAttempts < MAX_RESPONSE_ATTEMPTS) {
+  while (currentState.responseAttempts < RETRY_LIMITS.RESPONSE_ATTEMPTS) {
     const response = await new ResponseGeneratorModule().execute(
       currentState,
       context
@@ -689,6 +699,7 @@ export async function generateResponseWithRetry(
 
 ```typescript
 // lib/pipeline/quality-thresholds.ts
+import { QUALITY_THRESHOLDS, RETRY_LIMITS, CRISIS_SEVERITY } from "../utils/constants";
 
 /**
  * Adjust quality expectations based on input quality
@@ -699,21 +710,21 @@ export async function generateResponseWithRetry(
 export function getResponseQualityThreshold(state: MolleiState): number {
   const { emotionConfidence, inputAmbiguous, userEmotion } = state
 
-  let threshold = 0.75
+  let threshold = QUALITY_THRESHOLDS.RESPONSE_NORMAL
 
   if (emotionConfidence < 0.6) {
-    threshold -= 0.15
+    threshold -= QUALITY_THRESHOLDS.LOW_CONFIDENCE_PENALTY
   }
 
   if (inputAmbiguous) {
-    threshold -= 0.10
+    threshold -= QUALITY_THRESHOLDS.AMBIGUOUS_INPUT_PENALTY
   }
 
   if (userEmotion?.secondary && userEmotion.intensity > 0.5) {
-    threshold -= 0.05
+    threshold -= QUALITY_THRESHOLDS.MIXED_EMOTION_PENALTY
   }
 
-  return Math.max(threshold, 0.5)
+  return Math.max(threshold, QUALITY_THRESHOLDS.RESPONSE_FLOOR)
 }
 
 /**
@@ -722,8 +733,8 @@ export function getResponseQualityThreshold(state: MolleiState): number {
 export function shouldRecheckSafety(state: MolleiState): boolean {
   const { crisisConfidence, crisisSeverity, safetyAttempts, ambiguousSafetySignals } = state
 
-  if (safetyAttempts >= 2) return false
-  if (crisisSeverity >= 3 && crisisConfidence < 0.7) return true
+  if (safetyAttempts >= RETRY_LIMITS.SAFETY_ATTEMPTS) return false
+  if (crisisSeverity >= CRISIS_SEVERITY.SUGGEST_HUMAN && crisisConfidence < QUALITY_THRESHOLDS.CRISIS_CONFIDENCE_RECHECK) return true
   if (ambiguousSafetySignals.length > 0) return true
 
   return false
@@ -822,6 +833,7 @@ export function createEmotionBackend(): EmotionBackend {
 
 ```typescript
 // lib/pipeline/two-stage-emotion.ts
+import { TWO_STAGE } from "../utils/constants";
 
 interface TwoStageConfig {
   confidenceThreshold: number
@@ -829,8 +841,8 @@ interface TwoStageConfig {
 }
 
 const DEFAULT_CONFIG: TwoStageConfig = {
-  confidenceThreshold: 0.8,
-  severityThreshold: 3,
+  confidenceThreshold: TWO_STAGE.CONFIDENCE_THRESHOLD,
+  severityThreshold: TWO_STAGE.SEVERITY_THRESHOLD,
 }
 
 /**
@@ -936,9 +948,7 @@ import { MolleiState } from "../pipeline/state";
 import { PipelineContext } from "../pipeline/context";
 import { traceAgentStage } from "../infrastructure/trace";
 import { MODELS } from "../ai/models";
-import { TOKEN_BUDGETS } from "../utils/constants";
-
-const MAX_ITERATIONS = 3;
+import { TOKEN_BUDGETS, RETRY_LIMITS } from "../utils/constants";
 
 const ValidationSchema = z.object({
   approved: z.boolean(),
@@ -986,7 +996,7 @@ export async function runMakerCheckerLoop(
   let iteration = 0;
   let approved = false;
 
-  while (!approved && iteration < MAX_ITERATIONS) {
+  while (!approved && iteration < RETRY_LIMITS.MAKER_CHECKER_ITERATIONS) {
     iteration++;
     const start = performance.now();
 
