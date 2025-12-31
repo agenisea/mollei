@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Mollei" width="200" />
+  <img src="public/logo.png" alt="Mollei" width="200" />
 </p>
 
 <h1 align="center">Mollei™</h1>
