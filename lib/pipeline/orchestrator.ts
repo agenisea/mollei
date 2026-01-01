@@ -94,7 +94,12 @@ export async function runMolleiPipeline(
     if (ctx.orchestrator?.aborted) break
 
     const result = await agent.execute(currentState, ctx)
-    currentState = { ...currentState, ...result }
+    currentState = {
+      ...currentState,
+      ...result,
+      latencyMs: { ...currentState.latencyMs, ...(result.latencyMs ?? {}) },
+      agentErrors: [...currentState.agentErrors, ...(result.agentErrors ?? [])],
+    }
   }
 
   const totalLatency = Math.round(performance.now() - start)

@@ -53,3 +53,29 @@ export interface ConversationScenario {
   userEmotion: string
   molleiEmotion: string
 }
+
+export interface MemoryScenario {
+  id: string
+  userMessage: string
+  sessionContext: string
+  expectedTrajectory: 'improving' | 'stable' | 'declining'
+  expectedThemes: string[]
+}
+
+export interface EmotionReasonerScenario {
+  id: string
+  userEmotion: string
+  userMessage: string
+  crisisDetected: boolean
+  expectedApproach: string
+  expectedPresence: string
+}
+
+export interface ResponseScenario {
+  id: string
+  userMessage: string
+  userEmotion: string
+  molleiEmotion: string
+  crisisSeverity: number
+  expectedContains: string[]
+}

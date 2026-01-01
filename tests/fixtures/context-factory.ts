@@ -1,5 +1,6 @@
 import { createInitialState, type MolleiState } from '@/lib/pipeline/state'
 import type { PipelineContext } from '@/lib/pipeline/orchestrator'
+import { TEST_IDS } from './mock-factory'
 
 interface TestContextConfig {
   sessionId?: string
@@ -9,9 +10,9 @@ interface TestContextConfig {
 }
 
 const DEFAULT_CONFIG: Required<TestContextConfig> = {
-  sessionId: 'test-session',
-  userId: 'test-user',
-  traceId: 'test-trace',
+  sessionId: TEST_IDS.SESSION.DEFAULT,
+  userId: TEST_IDS.USER.DEFAULT,
+  traceId: TEST_IDS.TRACE.DEFAULT,
   turnNumber: 1,
 }
 
@@ -41,16 +42,16 @@ export function createTestState(
 
 export function createGoldenTestContext(): PipelineContext {
   return createTestContext({
-    traceId: 'golden-test',
-    sessionId: 'golden-session',
-    userId: 'golden-user',
+    traceId: TEST_IDS.TRACE.GOLDEN,
+    sessionId: TEST_IDS.SESSION.GOLDEN,
+    userId: TEST_IDS.USER.GOLDEN,
   })
 }
 
 export function createGoldenTestState(userMessage: string): MolleiState {
   return createTestState(userMessage, {
-    traceId: 'golden-test',
-    sessionId: 'golden-session',
-    userId: 'golden-user',
+    traceId: TEST_IDS.TRACE.GOLDEN,
+    sessionId: TEST_IDS.SESSION.GOLDEN,
+    userId: TEST_IDS.USER.GOLDEN,
   })
 }

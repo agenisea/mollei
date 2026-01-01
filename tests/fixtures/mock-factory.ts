@@ -6,6 +6,9 @@ import type {
   CrisisScenario,
   EmotionScenario,
   ConversationScenario,
+  MemoryScenario,
+  EmotionReasonerScenario,
+  ResponseScenario,
 } from './types'
 import type { CachedTurn } from '@/lib/cache/conversation-cache'
 import {
@@ -17,6 +20,59 @@ import {
   APPROACH_TYPES,
 } from '@/lib/utils/constants'
 
+export const TEST_EMOTIONS = {
+  INTENSITY: {
+    HIGH: 0.9,
+    MEDIUM: 0.7,
+    LOW: 0.3,
+    NEUTRAL: 0.5,
+  },
+  VALENCE: {
+    POSITIVE: 0.7,
+    NEGATIVE: -0.6,
+    STRONG_NEGATIVE: -0.8,
+    STRONG_POSITIVE: 0.8,
+    NEUTRAL: 0,
+  },
+  ENERGY: {
+    HIGH: 0.8,
+    MEDIUM: 0.6,
+    LOW: 0.4,
+  },
+} as const
+
+export const TEST_CONFIDENCE = {
+  HIGH: 0.95,
+  MEDIUM: 0.9,
+  LOW: 0.7,
+} as const
+
+export const TEST_LATENCY_MS = {
+  MOOD_SENSOR: 50,
+  SAFETY_MONITOR: 30,
+  MEMORY_AGENT: 40,
+  EMOTION_REASONER: 80,
+  RESPONSE_GENERATOR: 200,
+} as const
+
+export const TEST_IDS = {
+  SESSION: {
+    DEFAULT: 'test-session',
+    ALTERNATE: 'test-session-456',
+    GOLDEN: 'golden-session',
+  },
+  USER: {
+    DEFAULT: 'test-user',
+    GOLDEN: 'golden-user',
+  },
+  TRACE: {
+    DEFAULT: 'test-trace',
+    GOLDEN: 'golden-test',
+  },
+} as const
+
+export const CRISIS_HOTLINE = '988' as const
+
 export function createEmotionResponse(
   overrides: Partial<MockEmotionOutput> = {}
 ): { object: MockEmotionOutput } {
@@ -24,8 +80,8 @@ export function createEmotionResponse(
     object: {
       primary: 'neutral',
       secondary: null,
-      intensity: 0.5,
-      valence: 0,
+      intensity: TEST_EMOTIONS.INTENSITY.NEUTRAL,
+      valence: TEST_EMOTIONS.VALENCE.NEUTRAL,
       signals: [],
       ambiguityNotes: null,
       ...overrides,
@@ -37,8 +93,8 @@ export function createPositiveEmotionResponse(): { object: MockEmotionOutput } {
   return createEmotionResponse({
     primary: 'joy',
     secondary: 'excitement',
-    intensity: 0.8,
-    valence: 0.7,
+    intensity: TEST_EMOTIONS.ENERGY.HIGH,
+    valence: TEST_EMOTIONS.VALENCE.POSITIVE,
     signals: ['enthusiasm', 'positive_language'],
   })
 }
@@ -47,8 +103,8 @@ export function createNegativeEmotionResponse(): { object: MockEmotionOutput } {
   return createEmotionResponse({
     primary: 'sadness',
     secondary: 'loneliness',
-    intensity: 0.7,
-    valence: -0.6,
+    intensity: TEST_EMOTIONS.INTENSITY.MEDIUM,
+    valence: TEST_EMOTIONS.VALENCE.NEGATIVE,
     signals: ['withdrawal', 'low_energy'],
   })
 }
@@ -71,7 +127,7 @@ export function createSafetyResponse(
       crisisDetected: false,
       severity: CRISIS_SEVERITY.PROCEED,
       signalType: SIGNAL_TYPES.NONE,
-      confidence: 0.95,
+      confidence: TEST_CONFIDENCE.HIGH,
       keyPhrases: [],
       suggestedResponseModifier: RESPONSE_MODIFIERS.NONE,
       ...overrides,
@@ -95,7 +151,7 @@ export function createCrisisResponse(
     crisisDetected: true,
     severity,
     signalType,
-    confidence: 0.9,
+    confidence: TEST_CONFIDENCE.MEDIUM,
     keyPhrases,
     suggestedResponseModifier: modifier,
   })
@@ -122,7 +178,7 @@ export function createEmotionReasonerResponse(
   return {
     object: {
       primary: 'warmth',
-      energy: 0.6,
+      energy: TEST_EMOTIONS.ENERGY.MEDIUM,
       approach: APPROACH_TYPES.VALIDATE,
       toneModifiers: [],
       presenceQuality: 'attentive',
@@ -193,13 +249,13 @@ export function createEmotionResponseForScenario(
   scenario: EmotionScenario
 ): { object: MockEmotionOutput } {
   const valenceValue =
-    scenario.expectedValence === 'positive' ? 0.7 :
-    scenario.expectedValence === 'negative' ? -0.6 : 0
+    scenario.expectedValence === 'positive' ? TEST_EMOTIONS.VALENCE.POSITIVE :
+    scenario.expectedValence === 'negative' ? TEST_EMOTIONS.VALENCE.NEGATIVE : TEST_EMOTIONS.VALENCE.NEUTRAL
 
   return createEmotionResponse({
     primary: scenario.expectedPrimary,
     valence: valenceValue,
-    intensity: scenario.expectedValence === 'neutral' ? 0.3 : 0.7,
+    intensity: scenario.expectedValence === 'neutral' ? TEST_EMOTIONS.INTENSITY.LOW : TEST_EMOTIONS.INTENSITY.MEDIUM,
   })
 }
 
@@ -227,11 +283,7 @@ export const CONVERSATION_SCENARIOS = {
   },
 } as const satisfies Record<string, ConversationScenario>
 
-export const TEST_SESSION_IDS = {
-  DEFAULT: 'test-session-123',
-  ALTERNATE: 'test-session-456',
-  GOLDEN: 'golden-session',
-} as const
+export const TEST_SESSION_IDS = TEST_IDS.SESSION
 
 let turnIdCounter = 0
 
@@ -268,3 +320,105 @@ export function createMockTurnForScenario(
 export function resetTurnIdCounter(): void {
   turnIdCounter = 0
 }
+
+export const MEMORY_SCENARIOS = {
+  NEW_USER: {
+    id: 'new-user',
+    userMessage: 'Hello, I am new here',
+    sessionContext: 'No prior context (new session)',
+    expectedTrajectory: 'stable',
+    expectedThemes: [],
+  },
+  RETURNING_POSITIVE: {
+    id: 'returning-positive',
+    userMessage: 'Things have been better since we last talked',
+    sessionContext: 'Previous: User discussed work stress. Mollei provided validation.',
+    expectedTrajectory: 'improving',
+    expectedThemes: ['work_stress'],
+  },
+  RECURRING_ANXIETY: {
+    id: 'recurring-anxiety',
+    userMessage: 'The anxiety is back again',
+    sessionContext: 'Previous turns: anxiety discussed multiple times over past week',
+    expectedTrajectory: 'stable',
+    expectedThemes: ['anxiety', 'recurring_pattern'],
+  },
+} as const satisfies Record<string, MemoryScenario>
+
+export function createMemoryResponseForScenario(
+  scenario: MemoryScenario
+): { object: MockMemoryOutput } {
+  return createMemoryResponse({
+    contextSummary: scenario.sessionContext,
+    emotionalTrajectory: scenario.expectedTrajectory,
+    recurringThemes: scenario.expectedThemes,
+    callbackOpportunities: scenario.expectedThemes.length > 0 ? ['reference_previous'] : [],
+    relationshipStage: scenario.sessionContext.includes('No prior') ? 'new' : 'building',
+  })
+}
+
+export const EMOTION_REASONER_SCENARIOS = {
+  VALIDATE_SADNESS: {
+    id: 'validate-sadness',
+    userEmotion: 'sadness',
+    userMessage: 'I have been feeling really down lately',
+    crisisDetected: false,
+    expectedApproach: APPROACH_TYPES.VALIDATE,
+    expectedPresence: 'attentive',
+  },
+  SUPPORT_CRISIS: {
+    id: 'support-crisis',
+    userEmotion: 'distress',
+    userMessage: 'I do not know how to go on',
+    crisisDetected: true,
+    expectedApproach: APPROACH_TYPES.CRISIS_SUPPORT,
+    expectedPresence: 'grounded',
+  },
+  EXPLORE_POSITIVE: {
+    id: 'explore-positive',
+    userEmotion: 'joy',
+    userMessage: 'Something wonderful happened today',
+    crisisDetected: false,
+    expectedApproach: APPROACH_TYPES.EXPLORE,
+    expectedPresence: 'warm',
+  },
+} as const satisfies Record<string, EmotionReasonerScenario>
+
+export function createEmotionReasonerResponseForScenario(
+  scenario: EmotionReasonerScenario
+): { object: MockEmotionReasonerOutput } {
+  return createEmotionReasonerResponse({
+    primary: 'warmth',
+    energy: scenario.crisisDetected ? TEST_EMOTIONS.ENERGY.LOW : TEST_EMOTIONS.ENERGY.MEDIUM,
+    approach: scenario.expectedApproach,
+    toneModifiers: scenario.crisisDetected ? ['gentle', 'grounding'] : [],
+    presenceQuality: scenario.expectedPresence,
+  })
+}
+
+export const RESPONSE_SCENARIOS = {
+  NORMAL_GREETING: {
+    id: 'normal-greeting',
+    userMessage: 'Hello, how are you?',
+    userEmotion: 'neutral',
+    molleiEmotion: 'warm',
+    crisisSeverity: CRISIS_SEVERITY.PROCEED,
+    expectedContains: [],
+  },
+  CRISIS_SUPPORT: {
+    id: 'crisis-support',
+    userMessage: 'I want to end it all',
+    userEmotion: 'despair',
+    molleiEmotion: 'grounded',
+    crisisSeverity: CRISIS_SEVERITY.IMMEDIATE_DANGER,
+    expectedContains: [CRISIS_HOTLINE, 'Crisis'],
+  },
+  EMOTIONAL_SUPPORT: {
+    id: 'emotional-support',
+    userMessage: 'I feel so lonely',
+    userEmotion: 'loneliness',
+    molleiEmotion: 'compassionate',
+    crisisSeverity: CRISIS_SEVERITY.PROCEED,
+    expectedContains: [],
+  },
+} as const satisfies Record<string, ResponseScenario>
