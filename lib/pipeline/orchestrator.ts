@@ -28,8 +28,9 @@ export async function runParallelModules(
   return results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value
     const agentId = modules[i]?.agentId ?? `module_${i}`
+    const errorMsg = r.reason instanceof Error ? r.reason.message : String(r.reason)
     console.error(`[orchestrator] ${agentId} failed:`, r.reason)
-    return {}
+    return { agentErrors: [`${agentId}: ${errorMsg}`] }
   })
 }
 

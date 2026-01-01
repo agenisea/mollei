@@ -80,7 +80,7 @@ describe('Pipeline Orchestrator', () => {
       expect(module2.execute).toHaveBeenCalledWith(state, ctx)
     })
 
-    it('should handle module failures gracefully', async () => {
+    it('should handle module failures gracefully and record errors', async () => {
       const successModule: PipelineModule = {
         agentId: 'success',
         execute: vi.fn().mockResolvedValue({ success: true }),
@@ -96,7 +96,7 @@ describe('Pipeline Orchestrator', () => {
       const results = await runParallelModules([successModule, failModule], state, ctx)
 
       expect(results[0]).toEqual({ success: true })
-      expect(results[1]).toEqual({})
+      expect(results[1]).toEqual({ agentErrors: ['fail: Module failed'] })
     })
   })
 

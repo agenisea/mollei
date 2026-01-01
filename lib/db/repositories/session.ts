@@ -21,7 +21,8 @@ function getDb() {
 
 export interface ISessionRepository {
   getSession(sessionId: string): Promise<Session | null>
-  createSession(userId: string): Promise<Session>
+  createSession(userId: string, sessionId?: string): Promise<Session>
+  getOrCreateSession(sessionId: string, userId: string): Promise<Session>
   updateSession(sessionId: string, data: Partial<Session>): Promise<void>
   getTurnNumber(sessionId: string): Promise<number>
 }
@@ -39,10 +40,11 @@ export class SessionRepository implements ISessionRepository {
     return result[0] ?? null
   }
 
-  async createSession(userId: string): Promise<Session> {
+  async createSession(userId: string, sessionId?: string): Promise<Session> {
     const result = await this.db
       .insert(sessions)
       .values({
+        ...(sessionId ? { id: sessionId } : {}),
         userId,
         status: 'active',
         emotionState: { primary: 'neutral', intensity: 0.5 },
@@ -54,6 +56,19 @@ export class SessionRepository implements ISessionRepository {
     }
 
     return result[0]
+  }
+
+  async getOrCreateSession(sessionId: string, userId: string): Promise<Session> {
+    const existing = await this.getSession(sessionId)
+    if (existing) return existing
+
+    try {
+      return await this.createSession(userId, sessionId)
+    } catch (error) {
+      const existing = await this.getSession(sessionId)
+      if (existing) return existing
+      throw error
+    }
   }
 
   async updateSession(sessionId: string, updates: Partial<Session>): Promise<void> {

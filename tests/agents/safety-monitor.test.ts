@@ -99,28 +99,31 @@ describe('SafetyMonitor', () => {
     expect(result.crisisDetected).toBe(false)
   })
 
-  it('should use fallback when circuit breaker is open', async () => {
+  it('should use fail-safe fallback when circuit breaker is open', async () => {
     const openBreaker = new AlwaysOpenCircuitBreaker()
     const monitor = new SafetyMonitor({ circuitBreaker: openBreaker })
 
     const state = createTestState('I want to hurt myself')
     const result = await monitor.execute(state, baseCtx)
 
-    expect(result.crisisDetected).toBe(false)
-    expect(result.crisisSeverity).toBe(CRISIS_SEVERITY.PROCEED)
-    expect(result.crisisSignalType).toBe(SIGNAL_TYPES.NONE)
+    // Fail-SAFE: When LLM unavailable, assume potential crisis
+    expect(result.crisisDetected).toBe(true)
+    expect(result.crisisSeverity).toBe(CRISIS_SEVERITY.SUGGEST_HUMAN)
+    expect(result.crisisSignalType).toBe(SIGNAL_TYPES.DISTRESS)
+    expect(result.suggestedResponseModifier).toBe(RESPONSE_MODIFIERS.INCLUDE_SAFETY_CHECK)
     expect(mockGenerateObject).not.toHaveBeenCalled()
   })
 
-  it('should use fallback on AI error', async () => {
+  it('should use fail-safe fallback on AI error', async () => {
     mockGenerateObjectError(mockGenerateObject, createErrorResponse('API rate limit'))
 
     const monitor = new SafetyMonitor()
     const state = createTestState('I want to hurt myself')
     const result = await monitor.execute(state, baseCtx)
 
-    expect(result.crisisDetected).toBe(false)
-    expect(result.crisisSeverity).toBe(CRISIS_SEVERITY.PROCEED)
+    // Fail-SAFE: When LLM fails, assume potential crisis
+    expect(result.crisisDetected).toBe(true)
+    expect(result.crisisSeverity).toBe(CRISIS_SEVERITY.SUGGEST_HUMAN)
     expect(result.agentErrors).toContain('API rate limit')
   })
 

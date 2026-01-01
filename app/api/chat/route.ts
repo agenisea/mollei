@@ -20,7 +20,10 @@ import { getSharedRateLimiter, getRateLimitResponse } from '@/lib/infrastructure
 import { enableCostAggregation } from '@/lib/infrastructure/cost-aggregator'
 import { getSharedConversationCache, cachedTurnToNewTurn, type CachedTurn } from '@/lib/cache/conversation-cache'
 import { createTurnRepository } from '@/lib/db/repositories/turn'
+import { createSessionRepository } from '@/lib/db/repositories/session'
+import { createUserRepository } from '@/lib/db/repositories/user'
 import { runSecurityPipeline } from '@/lib/security'
+import { FALLBACK_EMOTION } from '@/lib/utils/constants'
 
 enableCostAggregation()
 
@@ -143,6 +146,22 @@ export async function POST(request: NextRequest) {
             severity: result.crisisSeverity,
             sessionId,
           })
+
+          // Persist crisis event to database for audit trail (authenticated users only)
+          if (isAuthenticated && internalUserId !== 'anonymous') {
+            const turnRepository = createTurnRepository()
+            turnRepository
+              .createCrisisEvent({
+                sessionId,
+                triggerText: message.substring(0, 500),
+                severity: result.crisisSeverity ?? 3,
+                signalType: result.crisisSignalType ?? 'distress',
+                actionTaken: result.crisisSeverity && result.crisisSeverity >= 4 ? 'resources_shown' : 'safety_check',
+              })
+              .catch((error) => {
+                console.error(`[${traceId}] Crisis event persistence failed:`, error)
+              })
+          }
         }
 
         const cachedTurn: CachedTurn = {
@@ -151,8 +170,8 @@ export async function POST(request: NextRequest) {
           turnNumber: result.turnNumber,
           userMessage: message,
           molleiResponse: response,
-          userEmotion: { primary: result.userEmotion ?? 'unknown' },
-          molleiEmotion: { primary: result.molleiEmotion ?? 'neutral' },
+          userEmotion: result.userEmotion ?? FALLBACK_EMOTION,
+          molleiEmotion: result.molleiEmotion ?? FALLBACK_EMOTION,
           crisisDetected: result.crisisDetected,
           crisisSeverity: result.crisisSeverity,
           latencyMs: result.latencyMs?.total,
@@ -162,11 +181,22 @@ export async function POST(request: NextRequest) {
         const cache = getSharedConversationCache()
         await cache.cacheTurn(cachedTurn)
 
-        // Write-through to Postgres (non-blocking)
-        const turnRepository = createTurnRepository()
-        turnRepository.createTurn(cachedTurnToNewTurn(cachedTurn)).catch((error) => {
-          console.error(`[${traceId}] Postgres write-through failed:`, error)
-        })
+        // Write-through to Postgres only for authenticated users
+        // Anonymous users only use cache (no session/user records in DB)
+        if (isAuthenticated && internalUserId !== 'anonymous') {
+          const userRepository = createUserRepository()
+          const sessionRepository = createSessionRepository()
+          const turnRepository = createTurnRepository()
+
+          // Ensure user and session exist before writing turn
+          userRepository
+            .getOrCreateByClerkId(clerkId)
+            .then((user) => sessionRepository.getOrCreateSession(sessionId, user.id))
+            .then(() => turnRepository.createTurn(cachedTurnToNewTurn(cachedTurn)))
+            .catch((error) => {
+              console.error(`[${traceId}] Postgres write-through failed:`, error)
+            })
+        }
 
         await orchestrator.sendResult({
           sessionId,

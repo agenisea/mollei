@@ -4,7 +4,7 @@ import { responseGeneratorModel, crisisModel } from '../ai/client'
 import type { MolleiState } from '../pipeline/state'
 import type { PipelineContext } from '../pipeline/orchestrator'
 import { RESPONSE_GENERATOR_PROMPT } from '../prompts/response-generator'
-import { appendCrisisResources } from '../tools/crisis-resources'
+import { applySeverityModifier } from '../tools/crisis-resources'
 import {
   AGENT_IDS,
   TIMEOUTS,
@@ -71,10 +71,7 @@ export class ResponseGenerator extends BaseAgent {
       text = result.text
     }
 
-    let response = text
-    if ((state.crisisSeverity ?? 0) >= CRISIS_SEVERITY.CRISIS_SUPPORT) {
-      response = appendCrisisResources(text)
-    }
+    const response = applySeverityModifier(text, state.crisisSeverity ?? 0)
 
     return {
       response,
@@ -83,12 +80,19 @@ export class ResponseGenerator extends BaseAgent {
   }
 
   private buildPrompt(state: MolleiState): string {
+    const emotionClarity = this.computeEmotionClarity(state)
+
     return `
 ## User Message
 ${state.userMessage}
 
 ## User Emotional State
 ${JSON.stringify(state.userEmotion, null, 2)}
+
+## Emotion Clarity Score
+${emotionClarity.toFixed(2)} (${this.clarityLabel(emotionClarity)})
+${emotionClarity < 0.5 ? '→ Use tentative language: "It sounds like...", "I sense...", "I might be picking up on..."' : ''}
+${emotionClarity >= 0.7 ? '→ Use confident language: "I hear...", "You seem...", "That sounds..."' : ''}
 
 ## Mollei's Emotional Response
 ${JSON.stringify(state.molleiEmotion, null, 2)}
@@ -111,9 +115,25 @@ ${state.crisisDetected ? `CRISIS DETECTED (severity ${state.crisisSeverity})` : 
 Generate a response that:
 1. Acknowledges the user's emotion before content
 2. Maintains Mollei's warm, thoughtful personality
-3. Uses confidence-modulated language based on emotion clarity
+3. Uses confidence-modulated language matching the Emotion Clarity Score above
 4. References context naturally (if available)
 5. Does NOT rush to solutions unless asked
     `.trim()
+  }
+
+  private computeEmotionClarity(state: MolleiState): number {
+    const emotion = state.userEmotion as { intensity?: number; ambiguityNotes?: string | null } | undefined
+    if (!emotion) return 0.5
+
+    const intensity = emotion.intensity ?? 0.5
+    const hasAmbiguity = Boolean(emotion.ambiguityNotes)
+
+    return hasAmbiguity ? intensity * 0.7 : intensity
+  }
+
+  private clarityLabel(clarity: number): string {
+    if (clarity >= 0.7) return 'clear'
+    if (clarity >= 0.4) return 'moderate'
+    return 'uncertain'
   }
 }
