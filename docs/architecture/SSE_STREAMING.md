@@ -141,7 +141,7 @@ export interface MolleiStreamMetadata {
 ### 2.3 Streaming Chat Endpoint
 
 ```typescript
-// app/api/chat/stream/route.ts
+// app/api/chat/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -318,7 +318,7 @@ export interface ChatInput {
 
 export function useMolleiStream() {
   return useSSEStream<ChatInput, MolleiStreamResult, MolleiSSEUpdate, MolleiStreamPhase>({
-    endpoint: "/api/chat/stream",
+    endpoint: "/api/chat",
     method: "POST",
 
     // Phase lifecycle
@@ -626,7 +626,7 @@ const circuitBreaker = createCircuitBreaker({
 
 export async function streamChat(input: ChatInput): Promise<Response> {
   return circuitBreaker.execute(async () => {
-    const response = await fetch("/api/chat/stream", {
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -656,7 +656,7 @@ export const SSE_TIMEOUTS = {
 ### 5.3 Graceful Degradation
 
 ```typescript
-// app/api/chat/stream/route.ts (error handling)
+// app/api/chat/route.ts (error handling)
 async function handlePipelineWithFallback(
   orchestrator: StreamOrchestrator<MolleiSSEUpdate>,
   input: MolleiState,
@@ -831,7 +831,7 @@ const ratelimit = new Ratelimit({
 });
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/chat/stream")) {
+  if (request.nextUrl.pathname.startsWith("/api/chat")) {
     // IMPORTANT: In production, extract userId from authenticated session/JWT
     // Never trust client-provided headers for rate limiting identity
     const session = await getServerSession();
@@ -858,11 +858,11 @@ export async function middleware(request: NextRequest) {
 ```typescript
 // __tests__/api/chat-stream.test.ts
 import { describe, it, expect, vi } from "vitest";
-import { POST } from "@/app/api/chat/stream/route";
+import { POST } from "@/app/api/chat/route";
 
-describe("POST /api/chat/stream", () => {
+describe("POST /api/chat", () => {
   it("returns SSE response with correct headers", async () => {
-    const request = new Request("http://localhost/api/chat/stream", {
+    const request = new Request("http://localhost/api/chat", {
       method: "POST",
       body: JSON.stringify({
         userId: "test-user",
@@ -879,7 +879,7 @@ describe("POST /api/chat/stream", () => {
 
   it("handles abort signal", async () => {
     const controller = new AbortController();
-    const request = new Request("http://localhost/api/chat/stream", {
+    const request = new Request("http://localhost/api/chat", {
       method: "POST",
       body: JSON.stringify({
         userId: "test-user",

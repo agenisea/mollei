@@ -1048,7 +1048,7 @@ export async function POST(request: NextRequest) {
 Uses [`@agenisea/sse-kit`](https://github.com/agenisea/sse-kit) for SSE streaming with heartbeat, abort signals, and observability hooks.
 
 ```typescript
-// app/api/chat/stream/route.ts
+// app/api/chat/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "crypto";

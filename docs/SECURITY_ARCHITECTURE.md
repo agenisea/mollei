@@ -2676,6 +2676,24 @@ export {
 };
 ```
 
+### 5.4 API Response Security
+
+Never expose internal details to clients. Sanitize all error responses.
+
+| Leak Type | Example | Action |
+|-----------|---------|--------|
+| Env vars | `DATABASE_URL must be set` | Generic error + server log |
+| Stack traces | `at lib/db/client.ts:47` | Generic error + server log |
+| DB errors | `duplicate key violates` | Generic error + server log |
+
+```typescript
+// ✅ Sanitized response pattern
+catch (error) {
+  console.error(`[${traceId}] Pipeline error:`, error)
+  await orchestrator.sendError('Something went wrong. Please try again.')
+}
+```
+
 ---
 
 ## 6. Human Escalation Rules
@@ -3041,6 +3059,10 @@ pre_deployment:
     - [ ] SIEM integration active
     - [ ] Alerting configured for critical events
     - [ ] GDPR/HIPAA controls validated
+
+  api_response_security:
+    - [ ] Error messages sanitized (no internals exposed)
+    - [ ] Trace IDs logged server-side for debugging
 
 runtime_monitoring:
   continuous_checks:

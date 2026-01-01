@@ -1065,7 +1065,7 @@ if (typeof globalThis !== "undefined" && !("window" in globalThis)) {
 ### Next.js Instrumentation Hook
 
 ```typescript
-// instrumentation.ts (Next.js 15+ server instrumentation)
+// instrumentation.ts (Next.js server instrumentation)
 import { initializeOpenTelemetry } from "@/lib/infrastructure/otel-bootstrap";
 
 export async function register() {

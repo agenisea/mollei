@@ -1,3 +1,5 @@
+export const WEBSITE_URL = 'http://localhost:3000'
+
 export const AGENT_IDS = {
   MOOD_SENSOR: 'mood_sensor',
   MEMORY_AGENT: 'memory_agent',

@@ -285,17 +285,17 @@ Covers:
 | **LLM Integration** | Vercel AI SDK + @ai-sdk/anthropic | Native streaming; generateObject; excellent DX |
 | **Orchestration** | **Custom Pipeline Orchestrator** | Framework-agnostic; no vendor lock-in |
 | **State Schema** | Zod | Runtime validation; TypeScript inference; no LangChain dependency |
-| **Framework** | Next.js 15 (App Router) | SSR, API routes, React Server Components |
+| **Framework** | Next.js (App Router) | SSR, API routes, React Server Components |
 | **SSE Streaming** | `@agenisea/sse-kit` | Heartbeat, abort signals, observability hooks, reconnection |
 | **Database** | PostgreSQL (Supabase) | Reliable; session and memory persistence |
 | **ORM** | Drizzle | Type-safe SQL; lightweight; great migrations |
 | **Cache** | Redis (ioredis) | Session state; rate limiting; circuit breaker state |
 | **Validation** | Zod | Runtime validation; TypeScript integration |
-| **Hosting** | Vercel (fullstack) | Edge functions; native Next.js; global CDN |
+| **Hosting** | Any Node.js platform | Next.js compatible; edge-ready |
 | **Auth** | Clerk | Quick implementation; good UX; Next.js integration |
 | **Tracing** | **OpenTelemetry** | Vendor-neutral; LangSmith as optional backend |
 | **Analytics** | PostHog | Product analytics; feature flags |
-| **Secrets** | Vercel Environment Variables | Native integration; encrypted at rest |
+| **Secrets** | Environment variables | Platform-agnostic; encrypted at rest |
 | **Testing** | Vitest + Playwright | Fast unit tests; E2E browser testing |
 
 ### Key Dependencies
@@ -463,10 +463,10 @@ export async function proactiveCheckin(userId: string): Promise<void> {
   }
 }
 
-// Cron job handler (e.g., Vercel Cron)
+// Cron job handler (scheduled task)
 // app/api/cron/checkin/route.ts
 export async function GET() {
-  // Called by Vercel Cron daily
+  // Called by cron scheduler daily
   const usersToCheck = await getUsersForCheckin();
   await Promise.all(usersToCheck.map(proactiveCheckin));
   return Response.json({ checked: usersToCheck.length });
@@ -476,7 +476,7 @@ export async function GET() {
 ### 8.3 Token-Level Streaming (Phase 2)
 
 ```typescript
-// app/api/chat/stream-tokens/route.ts
+// app/api/chat/route.ts (streaming section)
 import { NextRequest } from "next/server";
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
@@ -586,7 +586,7 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
 | Date | Decision | Alternatives Considered | Rationale |
 |------|----------|------------------------|-----------|
 | 2025-12-24 | **TypeScript over Python** | Python, Rust | Unified stack with Next.js frontend; better concurrency via V8; type safety for agent contracts |
-| 2025-12-24 | **Next.js 15 App Router** | Express, Hono, standalone | Native SSE streaming; React Server Components; Vercel deployment; built-in API routes |
+| 2025-12-24 | **Next.js App Router** | Express, Hono, standalone | Native SSE streaming; React Server Components; built-in API routes |
 | 2025-12-24 | **Vercel AI SDK** | Direct Anthropic SDK | `generateObject` with Zod; built-in streaming; multi-provider support |
 | 2025-12-27 | **Custom Pipeline Orchestrator over LangGraph** | LangGraph.js, CrewAI, Autogen | Framework-agnostic; no vendor lock-in |
 | 2025-12-27 | **Zod State Schema over LangGraph Annotation** | LangGraph Annotation | No LangChain dependency; better TypeScript inference; runtime validation |

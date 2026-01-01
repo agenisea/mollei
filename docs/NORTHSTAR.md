@@ -860,7 +860,7 @@ over information delivery.
 | **Framework** | LangGraph | State machine orchestration, checkpointing |
 | **Database** | PostgreSQL (Supabase) | Simple, reliable, good enough for MVP scale |
 | **Cache** | Redis | Session state, rate limiting |
-| **Hosting** | Vercel (frontend) + Railway (backend) | Fast iteration, reasonable cost |
+| **Hosting** | Any Node.js platform | Fast iteration, reasonable cost |
 | **Auth** | Clerk | Quick implementation, good UX |
 | **Analytics** | PostHog | Product analytics, feature flags |
 | **Monitoring** | Sentry | Error tracking, performance |
