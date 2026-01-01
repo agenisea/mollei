@@ -4,6 +4,7 @@ import { useRef, useEffect, type RefObject } from 'react'
 import { MessageBubble } from './message-bubble'
 import { TypingIndicator } from './typing-indicator'
 import { CrisisResources } from './crisis-resources'
+import { WelcomeMessage } from './welcome-message'
 
 interface Message {
   id: string
@@ -61,13 +62,7 @@ export function MessageList({
       className="flex-1 overflow-y-auto custom-scrollbar"
     >
       <div className="mx-auto max-w-3xl space-y-4 p-4">
-        {!hasMessages && (
-          <div className="flex h-full min-h-[50vh] items-center justify-center">
-            <p className="text-center text-lg text-muted-foreground">
-              Start a conversation with Mollei
-            </p>
-          </div>
-        )}
+        {!hasMessages && <WelcomeMessage />}
 
         {messages.map((message, index) => {
           const isLastMessage = index === messages.length - 1

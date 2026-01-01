@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils/cn'
+import { MolleiAvatar, UserAvatar } from '@/components/ui/avatar'
 
 type MessageRole = 'user' | 'assistant'
 
@@ -16,10 +17,14 @@ export function MessageBubble({ role, content, isStreaming }: MessageBubbleProps
   return (
     <div
       className={cn(
-        'flex w-full',
-        isUser ? 'justify-end' : 'justify-start'
+        'flex w-full gap-3',
+        isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
+      <div className="mt-1 shrink-0">
+        {isUser ? <UserAvatar size="sm" /> : <MolleiAvatar size="sm" />}
+      </div>
+
       <div
         className={cn(
           'max-w-[80%] rounded-2xl px-4 py-3',
@@ -28,7 +33,7 @@ export function MessageBubble({ role, content, isStreaming }: MessageBubbleProps
           isUser
             ? 'bg-primary text-primary-foreground'
             : 'border border-border bg-card text-card-foreground',
-          'sm:max-w-[75%]'
+          'sm:max-w-[70%]'
         )}
       >
         <p className="whitespace-pre-wrap break-words">
