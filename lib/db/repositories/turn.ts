@@ -1,4 +1,4 @@
-import { eq, sql, desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import {

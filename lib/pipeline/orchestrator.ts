@@ -52,8 +52,8 @@ export async function runSequentialModules(
 ): Promise<MolleiState> {
   let currentState = state
 
-  for (const module of modules) {
-    const result = await module.execute(currentState, ctx)
+  for (const agent of modules) {
+    const result = await agent.execute(currentState, ctx)
     currentState = { ...currentState, ...result }
   }
 
@@ -90,10 +90,10 @@ export async function runMolleiPipeline(
     )
   }
 
-  for (const module of modules.sequential) {
+  for (const agent of modules.sequential) {
     if (ctx.orchestrator?.aborted) break
 
-    const result = await module.execute(currentState, ctx)
+    const result = await agent.execute(currentState, ctx)
     currentState = { ...currentState, ...result }
   }
 

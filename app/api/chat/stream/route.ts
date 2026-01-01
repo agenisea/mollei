@@ -17,6 +17,8 @@ import { ChatRequestSchema } from '@/lib/contracts/chat'
 import { sanitizeUserInput, logSuspiciousInput } from '@/lib/utils/input-sanitizer'
 import { getSharedRateLimiter, getRateLimitResponse } from '@/lib/infrastructure/rate-limiter'
 import { enableCostAggregation } from '@/lib/infrastructure/cost-aggregator'
+import { getSharedConversationCache, cachedTurnToNewTurn, type CachedTurn } from '@/lib/cache/conversation-cache'
+import { createTurnRepository } from '@/lib/db/repositories/turn'
 
 enableCostAggregation()
 
@@ -95,9 +97,34 @@ export async function POST(request: NextRequest) {
       })
 
       if (!orchestrator.aborted) {
+        const response = result.response ?? FALLBACK_RESPONSE
+
+        const cachedTurn: CachedTurn = {
+          id: randomUUID(),
+          sessionId,
+          turnNumber: result.turnNumber,
+          userMessage: message,
+          molleiResponse: response,
+          userEmotion: { primary: result.userEmotion ?? 'unknown' },
+          molleiEmotion: { primary: result.molleiEmotion ?? 'neutral' },
+          crisisDetected: result.crisisDetected,
+          crisisSeverity: result.crisisSeverity,
+          latencyMs: result.latencyMs?.total,
+          createdAt: new Date().toISOString(),
+        }
+
+        const cache = getSharedConversationCache()
+        await cache.cacheTurn(cachedTurn)
+
+        // Write-through to Postgres (non-blocking)
+        const turnRepository = createTurnRepository()
+        turnRepository.createTurn(cachedTurnToNewTurn(cachedTurn)).catch((error) => {
+          console.error(`[${traceId}] Postgres write-through failed:`, error)
+        })
+
         await orchestrator.sendResult({
           sessionId,
-          response: result.response ?? FALLBACK_RESPONSE,
+          response,
           turnNumber: result.turnNumber,
           crisisDetected: result.crisisDetected,
           latencyMs: result.latencyMs,

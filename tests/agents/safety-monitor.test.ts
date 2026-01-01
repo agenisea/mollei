@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { generateObject } from 'ai'
 import { SafetyMonitor } from '@/lib/agents/safety-monitor'
-import { createInitialState } from '@/lib/pipeline/state'
-import type { PipelineContext } from '@/lib/pipeline/orchestrator'
 import { AlwaysOpenCircuitBreaker } from '@/lib/resilience/circuit-breaker'
 import {
   AGENT_IDS,
@@ -9,31 +8,25 @@ import {
   SIGNAL_TYPES,
   RESPONSE_MODIFIERS,
 } from '@/lib/utils/constants'
+import {
+  createTestContext,
+  createTestState,
+  createSafetyResponse,
+  createCrisisResponseForScenario,
+  createErrorResponse,
+  mockSafetyResponse,
+  mockGenerateObjectError,
+  CRISIS_SCENARIOS,
+} from '../fixtures'
 
 vi.mock('ai', () => ({
   generateObject: vi.fn(),
 }))
 
-import { generateObject } from 'ai'
-
 const mockGenerateObject = vi.mocked(generateObject)
 
 describe('SafetyMonitor', () => {
-  const baseCtx: PipelineContext = {
-    traceId: 'test-trace',
-    sessionId: 'test-session',
-    userId: 'test-user',
-    turnNumber: 1,
-  }
-
-  const createTestState = (message: string) =>
-    createInitialState({
-      sessionId: 'test-session',
-      userId: 'test-user',
-      traceId: 'test-trace',
-      turnNumber: 1,
-      userMessage: message,
-    })
+  const baseCtx = createTestContext()
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -45,141 +38,59 @@ describe('SafetyMonitor', () => {
   })
 
   it('should detect crisis with suicidal ideation', async () => {
-    const mockOutput = {
-      crisisDetected: true,
-      severity: 5,
-      signalType: SIGNAL_TYPES.SUICIDAL_IDEATION,
-      confidence: 0.95,
-      keyPhrases: ['want to end it', 'no point living'],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.GENTLE_RESOURCES,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    const scenario = CRISIS_SCENARIOS.SUICIDAL_IDEATION
+    mockSafetyResponse(mockGenerateObject, createCrisisResponseForScenario(scenario).object)
 
     const monitor = new SafetyMonitor()
-    const state = createTestState("I don't want to be here anymore")
+    const state = createTestState(scenario.input)
     const result = await monitor.execute(state, baseCtx)
 
     expect(result.crisisDetected).toBe(true)
-    expect(result.crisisSeverity).toBe(5)
-    expect(result.crisisSignalType).toBe(SIGNAL_TYPES.SUICIDAL_IDEATION)
-    expect(result.crisisConfidence).toBe(0.95)
+    expect(result.crisisSeverity).toBe(scenario.severity)
+    expect(result.crisisSignalType).toBe(scenario.signalType)
+    expect(result.crisisConfidence).toBe(0.9)
     expect(result.suggestedResponseModifier).toBe(RESPONSE_MODIFIERS.GENTLE_RESOURCES)
   })
 
   it('should detect self-harm signals', async () => {
-    const mockOutput = {
-      crisisDetected: true,
-      severity: 4,
-      signalType: SIGNAL_TYPES.SELF_HARM,
-      confidence: 0.88,
-      keyPhrases: ['cutting myself'],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.WARM_VALIDATION_FIRST,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    const scenario = CRISIS_SCENARIOS.SELF_HARM
+    mockSafetyResponse(mockGenerateObject, createCrisisResponseForScenario(scenario).object)
 
     const monitor = new SafetyMonitor()
-    const state = createTestState("I've been cutting myself to cope")
+    const state = createTestState(scenario.input)
     const result = await monitor.execute(state, baseCtx)
 
     expect(result.crisisDetected).toBe(true)
-    expect(result.crisisSeverity).toBe(4)
-    expect(result.crisisSignalType).toBe(SIGNAL_TYPES.SELF_HARM)
+    expect(result.crisisSeverity).toBe(scenario.severity)
+    expect(result.crisisSignalType).toBe(scenario.signalType)
   })
 
   it('should detect abuse disclosure', async () => {
-    const mockOutput = {
-      crisisDetected: true,
-      severity: 4,
-      signalType: SIGNAL_TYPES.ABUSE,
-      confidence: 0.92,
-      keyPhrases: ['partner hits me'],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.WARM_VALIDATION_FIRST,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    const scenario = CRISIS_SCENARIOS.ABUSE
+    mockSafetyResponse(mockGenerateObject, createCrisisResponseForScenario(scenario).object)
 
     const monitor = new SafetyMonitor()
-    const state = createTestState('My partner hit me again last night')
+    const state = createTestState(scenario.input)
     const result = await monitor.execute(state, baseCtx)
 
     expect(result.crisisDetected).toBe(true)
-    expect(result.crisisSignalType).toBe(SIGNAL_TYPES.ABUSE)
+    expect(result.crisisSignalType).toBe(scenario.signalType)
   })
 
   it('should not flag normal messages', async () => {
-    const mockOutput = {
-      crisisDetected: false,
-      severity: 1,
-      signalType: SIGNAL_TYPES.NONE,
-      confidence: 0.98,
-      keyPhrases: [],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.NONE,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    mockSafetyResponse(mockGenerateObject, createSafetyResponse().object)
 
     const monitor = new SafetyMonitor()
     const state = createTestState('I had a great day at work today!')
     const result = await monitor.execute(state, baseCtx)
 
     expect(result.crisisDetected).toBe(false)
-    expect(result.crisisSeverity).toBe(1)
+    expect(result.crisisSeverity).toBe(CRISIS_SEVERITY.PROCEED)
     expect(result.crisisSignalType).toBe(SIGNAL_TYPES.NONE)
   })
 
   it('should not flag colloquial expressions', async () => {
-    const mockOutput = {
-      crisisDetected: false,
-      severity: 1,
-      signalType: SIGNAL_TYPES.NONE,
-      confidence: 0.95,
-      keyPhrases: [],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.NONE,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    mockSafetyResponse(mockGenerateObject, createSafetyResponse().object)
 
     const monitor = new SafetyMonitor()
     const state = createTestState('This movie is killing me, so funny!')
@@ -202,7 +113,7 @@ describe('SafetyMonitor', () => {
   })
 
   it('should use fallback on AI error', async () => {
-    mockGenerateObject.mockRejectedValueOnce(new Error('API rate limit'))
+    mockGenerateObjectError(mockGenerateObject, createErrorResponse('API rate limit'))
 
     const monitor = new SafetyMonitor()
     const state = createTestState('I want to hurt myself')
@@ -214,24 +125,7 @@ describe('SafetyMonitor', () => {
   })
 
   it('should track latency in result', async () => {
-    const mockOutput = {
-      crisisDetected: false,
-      severity: 1,
-      signalType: SIGNAL_TYPES.NONE,
-      confidence: 0.99,
-      keyPhrases: [],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.NONE,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    mockSafetyResponse(mockGenerateObject, createSafetyResponse().object)
 
     const monitor = new SafetyMonitor()
     const state = createTestState('Hello')
@@ -244,28 +138,12 @@ describe('SafetyMonitor', () => {
 
   it('should log crisis detection', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const scenario = CRISIS_SCENARIOS.DISTRESS
 
-    const mockOutput = {
-      crisisDetected: true,
-      severity: 4,
-      signalType: SIGNAL_TYPES.DISTRESS,
-      confidence: 0.85,
-      keyPhrases: ['hopeless'],
-      suggestedResponseModifier: RESPONSE_MODIFIERS.INCLUDE_SAFETY_CHECK,
-    }
-
-    mockGenerateObject.mockResolvedValueOnce({
-      object: mockOutput,
-      finishReason: 'stop',
-      usage: { promptTokens: 10, completionTokens: 20 },
-      rawResponse: undefined,
-      response: undefined,
-      request: undefined,
-      toJsonResponse: () => new Response(),
-    } as unknown as Awaited<ReturnType<typeof generateObject>>)
+    mockSafetyResponse(mockGenerateObject, createCrisisResponseForScenario(scenario).object)
 
     const monitor = new SafetyMonitor()
-    const state = createTestState('I feel completely hopeless')
+    const state = createTestState(scenario.input)
     await monitor.execute(state, baseCtx)
 
     expect(consoleSpy).toHaveBeenCalledWith(

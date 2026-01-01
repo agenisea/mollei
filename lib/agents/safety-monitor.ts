@@ -42,10 +42,11 @@ export class SafetyMonitor extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, _ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
     const heuristics = runSafetyHeuristics(state.userMessage)
 
     if (!heuristics.shouldEscalate) {
+      ctx.tracer?.addEvent?.('safety_clear', { method: 'heuristics' })
       return {
         crisisDetected: false,
         crisisSeverity: CRISIS_SEVERITY.PROCEED,
@@ -81,8 +82,13 @@ export class SafetyMonitor extends BaseAgent {
       console.log(
         `[safety_monitor] LLM confirmed crisis: severity=${object.severity}, type=${object.signalType}`
       )
+      ctx.tracer?.addEvent?.('crisis_detected', {
+        severity: object.severity,
+        signalType: object.signalType,
+      })
     } else {
       console.log(`[safety_monitor] LLM override: heuristics flagged but LLM determined safe`)
+      ctx.tracer?.addEvent?.('safety_override', { method: 'llm' })
     }
 
     return {

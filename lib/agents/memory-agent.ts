@@ -11,6 +11,7 @@ import {
   EMOTIONAL_TRAJECTORY,
 } from '../utils/constants'
 import { AGENT_MODELS } from '../ai/models'
+import { getSharedConversationCache } from '../cache/conversation-cache'
 
 const MemoryOutputSchema = z.object({
   contextSummary: z.string(),
@@ -38,7 +39,7 @@ export class MemoryAgent extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, _ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
     const sessionContext = await this.getSessionContext(state.sessionId)
 
     const { object } = await generateObject({
@@ -59,6 +60,11 @@ export class MemoryAgent extends BaseAgent {
       ],
     })
 
+    ctx.tracer?.addEvent?.('memory_retrieved', {
+      themes: object.recurringThemes.length,
+      trajectory: object.emotionalTrajectory,
+    })
+
     return {
       contextSummary: object.contextSummary,
       callbackOpportunities: object.callbackOpportunities,
@@ -67,7 +73,8 @@ export class MemoryAgent extends BaseAgent {
     }
   }
 
-  private async getSessionContext(_sessionId: string): Promise<string> {
-    return 'No prior context (new session)'
+  private async getSessionContext(sessionId: string): Promise<string> {
+    const cache = getSharedConversationCache()
+    return cache.getSessionContext(sessionId, 5)
   }
 }

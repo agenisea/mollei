@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { sessions, conversationTurns, type Session, type NewSession } from '../schema'
+import { sessions, conversationTurns, type Session } from '../schema'
 
 function getConnectionString(): string {
   const url = process.env.DATABASE_URL

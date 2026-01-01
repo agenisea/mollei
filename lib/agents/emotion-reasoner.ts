@@ -39,7 +39,7 @@ export class EmotionReasoner extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, _ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
     const context = this.buildContext(state)
 
     const { object } = await generateObject({
@@ -58,6 +58,11 @@ export class EmotionReasoner extends BaseAgent {
           content: context,
         },
       ],
+    })
+
+    ctx.tracer?.addEvent?.('emotion_reasoned', {
+      primary: object.primary,
+      approach: object.approach,
     })
 
     return {

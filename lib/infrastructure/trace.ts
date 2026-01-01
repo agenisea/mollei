@@ -192,6 +192,7 @@ export interface SpanEvent {
 export interface Tracer {
   startSpan(name: string, attributes?: SpanAttributes): Span
   currentSpan(): Span | undefined
+  addEvent(name: string, attributes?: SpanAttributes): void
 }
 
 const TRACE_ENABLED = process.env.TRACE_ENABLED === 'true'
@@ -296,6 +297,10 @@ class RequestTracer implements Tracer {
   currentSpan(): Span | undefined {
     return this.spanStack[this.spanStack.length - 1]
   }
+
+  addEvent(name: string, attributes?: SpanAttributes): void {
+    this.currentSpan()?.addEvent(name, attributes)
+  }
 }
 
 class NoOpTracer implements Tracer {
@@ -308,6 +313,8 @@ class NoOpTracer implements Tracer {
   currentSpan(): Span | undefined {
     return undefined
   }
+
+  addEvent(): void {}
 }
 
 export function createTracer(traceId: string): Tracer {

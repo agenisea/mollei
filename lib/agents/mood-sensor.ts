@@ -32,7 +32,7 @@ export class MoodSensor extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, _ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
     const { object } = await generateObject({
       model: moodSensorModel,
       schema: EmotionOutputSchema,
@@ -50,6 +50,8 @@ export class MoodSensor extends BaseAgent {
         },
       ],
     })
+
+    ctx.tracer?.addEvent?.('mood_detected', { emotion: object.primary })
 
     return { userEmotion: object }
   }
