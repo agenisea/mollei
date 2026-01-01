@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { randomUUID } from 'crypto'
+import { getServerAuth } from '@/lib/auth/server'
 import {
   createStreamingResponse,
   createSSEResponse,
@@ -14,21 +15,20 @@ import { EmotionReasoner } from '@/lib/agents/emotion-reasoner'
 import { ResponseGenerator } from '@/lib/agents/response-generator'
 import { FALLBACK_RESPONSE } from '@/lib/utils/constants'
 import { ChatRequestSchema } from '@/lib/contracts/chat'
-import { sanitizeUserInput, logSuspiciousInput } from '@/lib/utils/input-sanitizer'
+import { sanitizeUserInput } from '@/lib/utils/input-sanitizer'
 import { getSharedRateLimiter, getRateLimitResponse } from '@/lib/infrastructure/rate-limiter'
 import { enableCostAggregation } from '@/lib/infrastructure/cost-aggregator'
 import { getSharedConversationCache, cachedTurnToNewTurn, type CachedTurn } from '@/lib/cache/conversation-cache'
 import { createTurnRepository } from '@/lib/db/repositories/turn'
+import { runSecurityPipeline } from '@/lib/security'
 
 enableCostAggregation()
 
 export async function POST(request: NextRequest) {
-  const rateLimiter = getSharedRateLimiter()
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
-  const rateLimitResult = await rateLimiter.checkAsync(ip, 'chat')
+  const { userId: clerkId, isAuthenticated } = await getServerAuth()
 
-  if (!rateLimitResult.allowed) {
-    return getRateLimitResponse(rateLimitResult)
+  if (!clerkId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const body = await request.json()
@@ -41,12 +41,51 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { userId, message: rawMessage, sessionId: requestSessionId } = parsed.data
-  const sessionId = requestSessionId ?? randomUUID()
+  const { message: rawMessage, sessionId: requestSessionId } = parsed.data
   const traceId = `TURN-${randomUUID().slice(0, 8)}`
 
+  let sessionId: string
+  let internalUserId: string
+  let auditLogger: ReturnType<typeof import('@/lib/security').createAuditLogger> | null = null
+
+  if (isAuthenticated) {
+    const securityResult = await runSecurityPipeline({
+      request,
+      clerkId,
+      requestSessionId,
+      traceId,
+    })
+
+    if (!securityResult.success) {
+      return Response.json(
+        { error: securityResult.error!.message },
+        { status: securityResult.error!.httpStatus }
+      )
+    }
+
+    sessionId = securityResult.context!.sessionId
+    internalUserId = securityResult.context!.internalUserId
+    auditLogger = securityResult.auditLogger
+  } else {
+    sessionId = requestSessionId ?? randomUUID()
+    internalUserId = 'anonymous'
+  }
+
+  const rateLimiter = getSharedRateLimiter()
+  const rateLimitResult = await rateLimiter.checkByUserAsync(internalUserId, 'chat')
+
+  if (!rateLimitResult.allowed) {
+    auditLogger?.log('ratelimit.exceeded', { limit: rateLimitResult.headers })
+    return getRateLimitResponse(rateLimitResult)
+  }
+
   const sanitizationResult = sanitizeUserInput(rawMessage)
-  logSuspiciousInput(traceId, rawMessage.length, sanitizationResult)
+  if (sanitizationResult.wasModified) {
+    auditLogger?.log('input.suspicious', {
+      patterns: sanitizationResult.detectedPatterns,
+      originalLength: rawMessage.length,
+    })
+  }
   const message = sanitizationResult.sanitized
 
   const observer: StreamObserver = {
@@ -78,14 +117,14 @@ export async function POST(request: NextRequest) {
       const ctx: PipelineContext = {
         traceId,
         sessionId,
-        userId,
+        userId: internalUserId,
         turnNumber: 0,
         orchestrator,
       }
 
       const initialState = createInitialState({
         sessionId,
-        userId,
+        userId: internalUserId,
         traceId,
         turnNumber: 0,
         userMessage: message,
@@ -98,6 +137,13 @@ export async function POST(request: NextRequest) {
 
       if (!orchestrator.aborted) {
         const response = result.response ?? FALLBACK_RESPONSE
+
+        if (result.crisisDetected) {
+          auditLogger?.log('crisis.detected', {
+            severity: result.crisisSeverity,
+            sessionId,
+          })
+        }
 
         const cachedTurn: CachedTurn = {
           id: randomUUID(),

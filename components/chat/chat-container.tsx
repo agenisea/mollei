@@ -4,25 +4,23 @@ import { useChat } from '@ai-sdk/react'
 import { type UIMessage } from 'ai'
 import { useCallback, useState, useMemo, type FormEvent, type ChangeEvent } from 'react'
 import { MolleiChatTransport } from '@/lib/client/chat-transport'
+import { useAuth, SignInButton } from '@/lib/auth/clerk'
 import { ChatHeader } from './chat-header'
 import { MessageList } from './message-list'
 import { InputArea } from './input-area'
 
 interface ChatContainerProps {
   sessionId?: string
-  userId?: string
 }
 
-export function ChatContainer({
-  sessionId,
-  userId = 'anonymous',
-}: ChatContainerProps) {
+export function ChatContainer({ sessionId }: ChatContainerProps) {
+  const { isLoaded, isSignedIn } = useAuth()
   const [inputValue, setInputValue] = useState('')
   const [crisisSeverity, setCrisisSeverity] = useState(0)
 
   const transport = useMemo(
-    () => new MolleiChatTransport({ api: '/api/chat', userId }),
-    [userId]
+    () => new MolleiChatTransport({ api: '/api/chat' }),
+    []
   )
 
   const { messages, sendMessage, regenerate, status, error, clearError } =
@@ -69,6 +67,34 @@ export function ChatContainer({
     role: msg.role as 'user' | 'assistant',
     content: getMessageContent(msg),
   }))
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-full items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-6 bg-background px-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Welcome to Mollei
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Sign in to start a conversation
+          </p>
+        </div>
+        <SignInButton mode="modal">
+          <button className="rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+            Sign In
+          </button>
+        </SignInButton>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">

@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export const ChatRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
-  userId: z.string().min(1),
   message: z.string().min(1).max(10000),
 })
 

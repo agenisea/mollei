@@ -15,6 +15,7 @@
     "@agenisea/sse-kit": "^0.1.2",
     "@ai-sdk/anthropic": "^3.0.2",
     "@ai-sdk/react": "^3.0.5",
+    "@clerk/nextjs": "^6.36.5",
     "@radix-ui/react-slot": "^1.2.4",
     "@upstash/redis": "^1.36.0",
     "ai": "^6.0.5",

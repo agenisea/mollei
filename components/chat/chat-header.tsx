@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { UserButton } from '@/lib/auth/clerk'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export function ChatHeader() {
@@ -18,7 +19,10 @@ export function ChatHeader() {
           />
           <span>Mollei™</span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <UserButton afterSignOutUrl="/" />
+        </div>
       </nav>
     </header>
   )

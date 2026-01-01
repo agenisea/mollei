@@ -5,16 +5,13 @@ const UUID_REGEX =
 
 interface MolleiTransportOptions {
   api?: string
-  userId?: string
 }
 
 export class MolleiChatTransport implements ChatTransport<UIMessage> {
   private api: string
-  private userId: string
 
   constructor(options: MolleiTransportOptions = {}) {
     this.api = options.api ?? '/api/chat'
-    this.userId = options.userId ?? 'anonymous'
   }
 
   async sendMessages(options: {
@@ -42,11 +39,11 @@ export class MolleiChatTransport implements ChatTransport<UIMessage> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: this.userId,
         message: messageText,
         sessionId,
       }),
       signal: abortSignal,
+      credentials: 'include',
     })
 
     if (!response.ok) {

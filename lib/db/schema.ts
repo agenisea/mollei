@@ -11,6 +11,7 @@ import {
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
+  clerkId: text('clerk_id').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   preferences: jsonb('preferences').default({ personality: 'default' }),
 })
