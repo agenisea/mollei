@@ -22,12 +22,20 @@ import { getSharedConversationCache, cachedTurnToNewTurn, type CachedTurn } from
 import { createTurnRepository } from '@/lib/db/repositories/turn'
 import { createSessionRepository } from '@/lib/db/repositories/session'
 import { createUserRepository } from '@/lib/db/repositories/user'
-import { runSecurityPipeline } from '@/lib/security'
+import { runSecurityPipeline, validateOrigin } from '@/lib/security'
 import { FALLBACK_EMOTION } from '@/lib/utils/constants'
 
 enableCostAggregation()
 
 export async function POST(request: NextRequest) {
+  const originResult = validateOrigin(request)
+  if (!originResult.success) {
+    return Response.json(
+      { error: originResult.error!.message },
+      { status: originResult.error!.httpStatus }
+    )
+  }
+
   const { userId: clerkId, isAuthenticated } = await getServerAuth()
 
   if (!clerkId) {

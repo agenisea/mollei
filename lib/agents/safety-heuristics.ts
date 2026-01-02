@@ -60,16 +60,6 @@ const COLLOQUIAL_OVERRIDES: RegExp[] = [
 export function runSafetyHeuristics(message: string): HeuristicResult {
   const normalizedMessage = message.toLowerCase()
 
-  for (const override of COLLOQUIAL_OVERRIDES) {
-    if (override.test(normalizedMessage)) {
-      return {
-        shouldEscalate: false,
-        signals: [],
-        matchedPhrases: [],
-      }
-    }
-  }
-
   const signals: SignalType[] = []
   const matchedPhrases: string[] = []
 
@@ -86,8 +76,29 @@ export function runSafetyHeuristics(message: string): HeuristicResult {
     }
   }
 
+  if (signals.length === 0) {
+    return {
+      shouldEscalate: false,
+      signals: [],
+      matchedPhrases: [],
+    }
+  }
+
+  const hasOnlyDistress = signals.every((s) => s === SIGNAL_TYPES.DISTRESS)
+  if (hasOnlyDistress) {
+    for (const override of COLLOQUIAL_OVERRIDES) {
+      if (override.test(normalizedMessage)) {
+        return {
+          shouldEscalate: false,
+          signals: [],
+          matchedPhrases: [],
+        }
+      }
+    }
+  }
+
   return {
-    shouldEscalate: signals.length > 0,
+    shouldEscalate: true,
     signals,
     matchedPhrases,
   }

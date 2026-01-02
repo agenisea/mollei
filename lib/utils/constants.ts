@@ -52,6 +52,8 @@ export type SignalType = (typeof SIGNAL_TYPES)[keyof typeof SIGNAL_TYPES]
 export const RESPONSE_MODIFIERS = {
   NONE: 'none',
   INCLUDE_SAFETY_CHECK: 'include_safety_check',
+  SUGGEST_PROFESSIONAL: 'suggest_professional',
+  CRISIS_RESOURCES: 'crisis_resources',
   WARM_VALIDATION_FIRST: 'warm_validation_first',
   GENTLE_RESOURCES: 'gentle_resources',
 } as const

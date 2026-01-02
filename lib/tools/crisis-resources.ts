@@ -1,3 +1,5 @@
+import { RESPONSE_MODIFIERS } from '../utils/constants'
+
 const CRISIS_RESOURCES = `
 
 ---
@@ -37,14 +39,18 @@ export function shouldAppendResources(crisisSeverity: number): boolean {
   return crisisSeverity >= 4
 }
 
-export function applySeverityModifier(response: string, severity: number): string {
-  if (severity >= 4) {
+export function applySeverityModifier(
+  response: string,
+  severity: number,
+  modifier?: string
+): string {
+  if (severity >= 4 || modifier === RESPONSE_MODIFIERS.CRISIS_RESOURCES) {
     return appendCrisisResources(response)
   }
-  if (severity === 3) {
+  if (severity === 3 || modifier === RESPONSE_MODIFIERS.SUGGEST_PROFESSIONAL) {
     return appendSuggestHuman(response)
   }
-  if (severity === 2) {
+  if (severity === 2 || modifier === RESPONSE_MODIFIERS.INCLUDE_SAFETY_CHECK) {
     return appendSafetyCheck(response)
   }
   return response

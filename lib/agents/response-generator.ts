@@ -80,7 +80,11 @@ export class ResponseGenerator extends BaseAgent {
       text = result.text
     }
 
-    const response = applySeverityModifier(text, state.crisisSeverity ?? 0)
+    const response = applySeverityModifier(
+      text,
+      state.crisisSeverity ?? 0,
+      state.suggestedResponseModifier
+    )
 
     return {
       response,

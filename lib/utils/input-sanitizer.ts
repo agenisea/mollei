@@ -49,8 +49,10 @@ export function sanitizeUserInput(input: string): SanitizationResult {
   }
 
   for (const { name, pattern, replacement } of INJECTION_PATTERNS) {
+    pattern.lastIndex = 0
     if (pattern.test(sanitized)) {
       detectedPatterns.push(name)
+      pattern.lastIndex = 0
       sanitized = sanitized.replace(pattern, replacement)
     }
   }
