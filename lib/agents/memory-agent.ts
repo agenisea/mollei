@@ -39,12 +39,17 @@ export class MemoryAgent extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>> {
     const sessionContext = await this.getSessionContext(state.sessionId)
 
     const { object } = await generateObject({
       model: memoryAgentModel,
       schema: MemoryOutputSchema,
+      abortSignal,
       messages: [
         {
           role: 'system',

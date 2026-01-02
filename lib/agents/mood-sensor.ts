@@ -32,10 +32,15 @@ export class MoodSensor extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>> {
     const { object } = await generateObject({
       model: moodSensorModel,
       schema: EmotionOutputSchema,
+      abortSignal,
       messages: [
         {
           role: 'system',

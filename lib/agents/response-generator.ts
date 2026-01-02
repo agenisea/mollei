@@ -29,7 +29,11 @@ export class ResponseGenerator extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>> {
     const useCrisisModel = (state.crisisSeverity ?? 0) >= CRISIS_SEVERITY.CRISIS_SUPPORT
     const model = useCrisisModel ? crisisModel : responseGeneratorModel
 
@@ -55,10 +59,14 @@ export class ResponseGenerator extends BaseAgent {
       const result = streamText({
         model,
         messages,
+        abortSignal,
       })
 
       const chunks: string[] = []
       for await (const chunk of result.textStream) {
+        if (abortSignal.aborted || ctx.orchestrator.aborted) {
+          break
+        }
         chunks.push(chunk)
         await ctx.orchestrator.sendEvent('delta', { text: chunk })
       }
@@ -67,6 +75,7 @@ export class ResponseGenerator extends BaseAgent {
       const result = await generateText({
         model,
         messages,
+        abortSignal,
       })
       text = result.text
     }

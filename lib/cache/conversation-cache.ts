@@ -214,6 +214,12 @@ export class ConversationCache {
     return this.backend.getSessionTurns(sessionId, limit)
   }
 
+  async getNextTurnNumber(sessionId: string): Promise<number> {
+    const turns = await this.backend.getSessionTurns(sessionId, 1)
+    if (turns.length === 0) return 1
+    return (turns[0]?.turnNumber ?? 0) + 1
+  }
+
   destroy(): void {
     this.backend.destroy?.()
   }

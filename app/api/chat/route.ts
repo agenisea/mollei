@@ -34,14 +34,17 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return Response.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+
   const parsed = ChatRequestSchema.safeParse(body)
 
   if (!parsed.success) {
-    return Response.json(
-      { error: 'Invalid request', details: parsed.error.flatten() },
-      { status: 400 }
-    )
+    return Response.json({ error: 'Invalid request' }, { status: 400 })
   }
 
   const { message: rawMessage, sessionId: requestSessionId } = parsed.data
@@ -75,7 +78,15 @@ export async function POST(request: NextRequest) {
   }
 
   const rateLimiter = getSharedRateLimiter()
-  const rateLimitResult = await rateLimiter.checkByUserAsync(internalUserId, 'chat')
+  const rateLimitKey = isAuthenticated
+    ? internalUserId
+    : request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      request.headers.get('x-real-ip') ??
+      'unknown'
+
+  const rateLimitResult = isAuthenticated
+    ? await rateLimiter.checkByUserAsync(rateLimitKey, 'chat')
+    : await rateLimiter.checkAsync(rateLimitKey, 'chat')
 
   if (!rateLimitResult.allowed) {
     auditLogger?.log('ratelimit.exceeded', { limit: rateLimitResult.headers })
@@ -117,11 +128,14 @@ export async function POST(request: NextRequest) {
 
   ;(async () => {
     try {
+      const cache = getSharedConversationCache()
+      const turnNumber = await cache.getNextTurnNumber(sessionId)
+
       const ctx: PipelineContext = {
         traceId,
         sessionId,
         userId: internalUserId,
-        turnNumber: 0,
+        turnNumber,
         orchestrator,
       }
 
@@ -129,7 +143,7 @@ export async function POST(request: NextRequest) {
         sessionId,
         userId: internalUserId,
         traceId,
-        turnNumber: 0,
+        turnNumber,
         userMessage: message,
       })
 

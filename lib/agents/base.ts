@@ -30,7 +30,11 @@ export abstract class BaseAgent implements PipelineModule {
     return this.config.agentId
   }
 
-  protected abstract run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>>
+  protected abstract run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>>
 
   async execute(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
     const start = performance.now()
@@ -51,9 +55,13 @@ export abstract class BaseAgent implements PipelineModule {
       return this.withLatency(this.fallbackFn(state), start)
     }
 
-    try {
-      const result = await Promise.race([this.run(state, ctx), this.timeout()])
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => abortController.abort(), this.config.timeoutMs)
 
+    try {
+      const result = await this.run(state, ctx, abortController.signal)
+
+      clearTimeout(timeoutId)
       this.circuitBreaker.recordSuccess()
       span?.setStatus('ok')
       span?.end()
@@ -61,6 +69,7 @@ export abstract class BaseAgent implements PipelineModule {
       traceAgentEnd(ctx.traceId, this.config.agentId, 'complete', durationMs)
       return this.withLatency(result, start)
     } catch (error) {
+      clearTimeout(timeoutId)
       this.circuitBreaker.recordFailure()
       const errorMsg = error instanceof Error ? error.message : String(error)
       console.error(`[${this.config.agentId}] Error:`, errorMsg)
@@ -80,12 +89,6 @@ export abstract class BaseAgent implements PipelineModule {
         start
       )
     }
-  }
-
-  private timeout(): Promise<never> {
-    return new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), this.config.timeoutMs)
-    )
   }
 
   private withLatency(result: Partial<MolleiState>, start: number): Partial<MolleiState> {

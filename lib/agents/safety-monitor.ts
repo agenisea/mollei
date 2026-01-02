@@ -50,7 +50,11 @@ export class SafetyMonitor extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>> {
     const heuristics = runSafetyHeuristics(state.userMessage)
 
     if (!heuristics.shouldEscalate) {
@@ -71,6 +75,7 @@ export class SafetyMonitor extends BaseAgent {
     const { object } = await generateObject({
       model: safetyMonitorModel,
       schema: SafetyOutputSchema,
+      abortSignal,
       messages: [
         {
           role: 'system',

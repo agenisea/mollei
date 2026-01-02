@@ -39,12 +39,17 @@ export class EmotionReasoner extends BaseAgent {
     super(config, fallback, options)
   }
 
-  protected async run(state: MolleiState, ctx: PipelineContext): Promise<Partial<MolleiState>> {
+  protected async run(
+    state: MolleiState,
+    ctx: PipelineContext,
+    abortSignal: AbortSignal
+  ): Promise<Partial<MolleiState>> {
     const context = this.buildContext(state)
 
     const { object } = await generateObject({
       model: emotionReasonerModel,
       schema: EmotionReasonerOutputSchema,
+      abortSignal,
       messages: [
         {
           role: 'system',
